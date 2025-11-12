@@ -1,0 +1,28 @@
+
+import React from 'react';
+import { Icon } from './Icon';
+
+interface HeaderProps {
+    theme: 'light' | 'dark';
+    toggleTheme: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme }) => {
+    return (
+        <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-40 border-b border-slate-200 dark:border-slate-700">
+            <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                    <Icon name="logo" className="w-8 h-8 text-blue-600" />
+                    <span className="text-xl font-bold text-slate-800 dark:text-slate-200">Architecture Analyzer</span>
+                </div>
+                <button
+                    onClick={toggleTheme}
+                    className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    aria-label="Toggle theme"
+                >
+                    {theme === 'light' ? <Icon name="moon" className="w-6 h-6" /> : <Icon name="sun" className="w-6 h-6" />}
+                </button>
+            </div>
+        </header>
+    );
+};
