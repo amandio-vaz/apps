@@ -10,7 +10,14 @@ declare global {
     interface Window {
         jspdf: {
             jsPDF: new (options?: any) => {
-                addImage: (imageData: string, format: string, x: number, y: number, width: number, height: number) => any;
+                internal: {
+                    pageSize: {
+                        getWidth: () => number;
+                        getHeight: () => number;
+                    };
+                };
+                addImage: (imageData: string | HTMLCanvasElement, format: string, x: number, y: number, width: number, height: number) => any;
+                addPage: () => any;
                 save: (filename: string) => void;
             };
         };
@@ -32,22 +39,51 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
     const handleDownloadPdf = async () => {
         const { jsPDF } = window.jspdf;
         const html2canvas = window.html2canvas;
+        const content = htmlContentRef.current;
 
-        if (htmlContentRef.current && jsPDF && html2canvas) {
+        if (content && jsPDF && html2canvas) {
             setIsGeneratingPdf(true);
             try {
-                const canvas = await html2canvas(htmlContentRef.current, {
+                const canvas = await html2canvas(content, {
                     scale: 2,
                     useCORS: true,
                     backgroundColor: document.documentElement.classList.contains('dark') ? '#0f172a' : '#ffffff',
                 });
+                
                 const imgData = canvas.toDataURL('image/png');
+                const canvasWidth = canvas.width;
+                const canvasHeight = canvas.height;
+
+                // Create a PDF with A4 dimensions in points ('pt')
                 const pdf = new jsPDF({
                     orientation: 'p',
-                    unit: 'px',
-                    format: [canvas.width, canvas.height],
+                    unit: 'pt',
+                    format: 'a4',
                 });
-                pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                
+                // Calculate the aspect ratio of the captured image
+                const canvasAspectRatio = canvasWidth / canvasHeight;
+
+                // Calculate the height of the image when fitted to the PDF's width
+                const imgHeightOnPdf = pdfWidth / canvasAspectRatio;
+                let heightLeft = imgHeightOnPdf;
+                let position = 0;
+
+                // Add the first page
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeightOnPdf);
+                heightLeft -= pdfHeight;
+
+                // Add more pages if the content is taller than one page
+                while (heightLeft > 0) {
+                    position -= pdfHeight; // Move the image up for the next page
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeightOnPdf);
+                    heightLeft -= pdfHeight;
+                }
+                
                 pdf.save('analise-arquitetura-ia.pdf');
             } catch (error) {
                 console.error("Error generating PDF:", error);
@@ -96,7 +132,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
                 )}
                 {activeTab === 'pdf' && (
                     <div>
-                        <p className="mb-4">Clique no botão abaixo para gerar e baixar um arquivo PDF do relatório no formato de página web.</p>
+                        <p className="mb-4">Clique no botão abaixo para gerar e baixar um arquivo PDF do relatório. O conteúdo será paginado automaticamente para se ajustar ao formato A4, garantindo a legibilidade de diagramas e tabelas.</p>
                         <button
                             onClick={handleDownloadPdf}
                             disabled={isGeneratingPdf}

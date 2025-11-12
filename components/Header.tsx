@@ -13,7 +13,7 @@ export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme }) => {
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                     <Icon name="logo" className="w-8 h-8 text-blue-600" />
-                    <span className="text-xl font-bold text-slate-800 dark:text-slate-200">Architecture Analyzer</span>
+                    <span className="text-xl font-bold text-slate-800 dark:text-slate-200">GPS AI: Architecture Analyzer</span>
                 </div>
                 <button
                     onClick={toggleTheme}

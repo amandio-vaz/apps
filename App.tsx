@@ -115,7 +115,7 @@ const App: React.FC = () => {
                 <div className="max-w-4xl mx-auto">
                     <div className="bg-white dark:bg-slate-800/50 p-6 sm:p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
                         <div className="text-center mb-8">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">GPS AI: Analisador Inteligente de Arquiteturas</h1>
+                            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Analisador de Arquitetura com IA</h1>
                             <p className="mt-2 text-slate-600 dark:text-slate-400">Otimize sua arquitetura tecnológica com análises profundas e geração de documentação profissional.</p>
                         </div>
                         
