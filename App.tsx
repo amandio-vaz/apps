@@ -20,6 +20,10 @@ const App: React.FC = () => {
     const [error, setError] = useState<Error | string | null>(null);
     const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
     const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+    const [voice, setVoice] = useState<string>('Puck');
+    const [narrationStyle, setNarrationStyle] = useState<string>('Profissional e Claro');
+    const [isGeneratingDiagram, setIsGeneratingDiagram] = useState<boolean>(false);
+
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -112,46 +116,35 @@ const App: React.FC = () => {
             const analysisData = await analyzeArchitecture(fileContents, context, constraints, priorities);
             
             let audioBase64: string | null = null;
-            let imageBase64: string | null = null;
-
-            const promises = [];
-
-            if(analysisData.audioSummary) {
-                setLoadingMessage('Gerando resumo em áudio com TTS premium...');
-                promises.push(
-                    generateAudioSummary(analysisData.audioSummary).then(res => audioBase64 = res)
-                );
-            }
-
-            if(analysisData.diagramPrompt) {
-                 setLoadingMessage('Gerando diagrama de arquitetura visual...');
-                promises.push(
-                    generateDiagramImage(analysisData.diagramPrompt).then(res => imageBase64 = res)
-                );
-            }
             
-            await Promise.all(promises);
-
-            let finalHtml = analysisData.html;
-
-            if (imageBase64) {
-                const imgTag = `<div class="flex justify-center my-8"><img src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-lg shadow-lg max-w-full h-auto border border-slate-200 dark:border-slate-700" /></div>`;
-                finalHtml = finalHtml.replace('[[DIAGRAM_PLACEHOLDER]]', imgTag);
-            } else {
-                 finalHtml = finalHtml.replace('[[DIAGRAM_PLACEHOLDER]]', '');
+            if (analysisData.audioSummary) {
+                setLoadingMessage('Gerando resumo em áudio com TTS premium...');
+                audioBase64 = await generateAudioSummary(analysisData.audioSummary, voice, narrationStyle);
             }
 
-            if (audioBase64) {
-                const audioPlayerTag = `<div class="my-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow"><h3 class="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">Ouvir Resumo Executivo</h3><audio controls class="w-full"><source src="data:audio/mpeg;base64,${audioBase64}" type="audio/mpeg">Seu navegador não suporta o elemento de áudio.</audio></div>`;
-                finalHtml = finalHtml.replace('[[AUDIO_PLAYER_PLACEHOLDER]]', audioPlayerTag);
-            } else {
-                finalHtml = finalHtml.replace('[[AUDIO_PLAYER_PLACEHOLDER]]', '');
-            }
+            const audioPlayerTag = audioBase64
+                ? `<div class="my-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow">
+                       <div class="no-print">
+                           <h3 class="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">Ouvir Resumo Executivo</h3>
+                           <audio controls class="w-full">
+                               <source src="data:audio/mpeg;base64,${audioBase64}" type="audio/mpeg">
+                               Seu navegador não suporta o elemento de áudio.
+                           </audio>
+                       </div>
+                       <div class="print-only">
+                           <h3 class="text-lg font-semibold mb-3 text-slate-800">Resumo Executivo em Áudio</h3>
+                           <p class="text-sm text-slate-600">O resumo executivo em áudio está disponível na versão interativa online desta documentação.</p>
+                       </div>
+                   </div>`
+                : '';
+
+            const finalHtml = analysisData.html.replace('[[AUDIO_PLAYER_PLACEHOLDER]]', audioPlayerTag);
 
             setAnalysisResult({
                 html: finalHtml,
                 markdown: analysisData.markdown,
                 audioBase64: audioBase64,
+                diagramPrompt: analysisData.diagramPrompt || null,
             });
 
         } catch (err) {
@@ -161,7 +154,48 @@ const App: React.FC = () => {
             setIsLoading(false);
             setLoadingMessage('');
         }
-    }, [files, context, constraints, priorities]);
+    }, [files, context, constraints, priorities, voice, narrationStyle]);
+
+    const handleGenerateDiagram = async () => {
+        if (!analysisResult?.diagramPrompt || isGeneratingDiagram) return;
+    
+        setIsGeneratingDiagram(true);
+        setError(null);
+    
+        try {
+            const imageBase64 = await generateDiagramImage(analysisResult.diagramPrompt);
+            
+            if (imageBase64) {
+                const imgTag = `<div class="flex justify-center my-8"><img src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-lg shadow-lg max-w-full h-auto border border-slate-200 dark:border-slate-700" /></div>`;
+                
+                setAnalysisResult(prevResult => {
+                    if (!prevResult) return null;
+                    return {
+                        ...prevResult,
+                        html: prevResult.html.replace('[[DIAGRAM_PLACEHOLDER]]', imgTag),
+                        diagramPrompt: null, 
+                    };
+                });
+            } else {
+                setError(new Error('A geração da imagem não retornou dados.'));
+            }
+    
+        } catch (err) {
+            console.error(err);
+            setError(err instanceof Error ? err : new Error('Falha ao gerar o diagrama.'));
+            setAnalysisResult(prevResult => {
+                if (!prevResult) return null;
+                const errorHtml = '<div class="my-6 p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-600 rounded-lg text-center text-red-700 dark:text-red-300">Falha ao gerar o diagrama. Por favor, tente novamente mais tarde.</div>';
+                return {
+                    ...prevResult,
+                    html: prevResult.html.replace('[[DIAGRAM_PLACEHOLDER]]', errorHtml),
+                    diagramPrompt: null,
+                };
+            });
+        } finally {
+            setIsGeneratingDiagram(false);
+        }
+    };
 
     return (
         <div className="min-h-screen transition-colors duration-300">
@@ -184,6 +218,10 @@ const App: React.FC = () => {
                                 priorities={priorities}
                                 setPriorities={updatePriorities}
                                 validationErrors={validationErrors}
+                                voice={voice}
+                                setVoice={setVoice}
+                                narrationStyle={narrationStyle}
+                                setNarrationStyle={setNarrationStyle}
                             />
 
                             {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
@@ -204,7 +242,11 @@ const App: React.FC = () => {
 
                     {analysisResult && (
                         <div className="mt-12">
-                            <ResultsDisplay result={analysisResult} />
+                            <ResultsDisplay 
+                                result={analysisResult}
+                                onGenerateDiagram={handleGenerateDiagram}
+                                isGeneratingDiagram={isGeneratingDiagram}
+                             />
                         </div>
                     )}
                 </div>

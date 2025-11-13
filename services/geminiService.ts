@@ -109,8 +109,20 @@ export const analyzeArchitecture = async (
     }
 };
 
-export const generateAudioSummary = async (summaryText: string): Promise<string> => {
-    const prompt = `Leia o seguinte resumo de forma clara, profissional e com uma voz natural: "${summaryText}"`;
+export const generateAudioSummary = async (
+    summaryText: string,
+    voice: string,
+    narrationStyle: string
+): Promise<string> => {
+    const styleInstructions: { [key: string]: string } = {
+        'Profissional e Claro': 'de forma clara, profissional e com uma voz natural',
+        'Entusiasmado e Dinâmico': 'com entusiasmo, de forma dinâmica e com uma voz energética',
+        'Calmo e Ponderado': 'de forma calma, ponderada e com uma voz suave',
+    };
+
+    const instruction = styleInstructions[narrationStyle] || styleInstructions['Profissional e Claro'];
+    const prompt = `Leia o seguinte resumo ${instruction}: "${summaryText}"`;
+    
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: prompt }] }],
@@ -118,7 +130,7 @@ export const generateAudioSummary = async (summaryText: string): Promise<string>
             responseModalities: [Modality.AUDIO],
             speechConfig: {
                 voiceConfig: {
-                    prebuiltVoiceConfig: { voiceName: 'Puck' }, // Uma voz masculina com tom profissional
+                    prebuiltVoiceConfig: { voiceName: voice },
                 },
             },
         },

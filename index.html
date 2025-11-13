@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
   <head>
@@ -22,6 +21,50 @@
         },
       }
     </script>
+    <style>
+      /* Estilos para renderização de PDF de alta qualidade */
+      .pdf-rendering .prose {
+        /* Força cores de tema claro para o texto no PDF */
+        --tw-prose-body: #374151;
+        --tw-prose-headings: #111827;
+        --tw-prose-links: #1d4ed8;
+        --tw-prose-bold: #111827;
+        --tw-prose-hr: #e5e7eb;
+        --tw-prose-quotes: #111827;
+        --tw-prose-quote-borders: #e5e7eb;
+        --tw-prose-code: #111827;
+        --tw-prose-pre-code: #e5e7eb;
+        --tw-prose-pre-bg: #f3f4f6;
+        --tw-prose-th-borders: #d1d5db;
+        --tw-prose-td-borders: #e5e7eb;
+      }
+
+      .pdf-rendering .bg-slate-100 {
+        background-color: #f1f5f9 !important;
+      }
+      
+      /* Estilos para controlar visibilidade na impressão/PDF */
+      .print-only {
+        display: none;
+      }
+
+      @media print, .pdf-rendering {
+        .no-print {
+          display: none !important;
+        }
+        .print-only {
+          display: block !important;
+        }
+      }
+
+      /* Melhora a quebra de página para a geração de PDF */
+      .pdf-rendering h1, .pdf-rendering h2, .pdf-rendering h3 {
+        page-break-after: avoid;
+      }
+      .pdf-rendering img, .pdf-rendering pre, .pdf-rendering table {
+        page-break-inside: avoid;
+      }
+    </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoVBL5gI9kLmbG4dTYdGUxbGuDDlMA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script type="importmap">
@@ -38,6 +81,13 @@
   <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
-    <div><p>Powered by Amândio Vaz - 2025</p></div>
+    <footer class="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
+      <p>
+        Powered by Amândio Vaz - 2025 | 
+        <a href="https://ai.google.dev/gemini-api/docs" target="_blank" rel="noopener noreferrer" class="hover:underline text-blue-600 dark:text-blue-400">
+          Documentação da API Gemini
+        </a>
+      </p>
+    </footer>
   </body>
 </html>

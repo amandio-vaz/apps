@@ -9,6 +9,7 @@ export interface AnalysisResult {
     html: string;
     markdown: string;
     audioBase64: string | null;
+    diagramPrompt: string | null;
 }
 
 export interface GeminiAnalysisResponse {
