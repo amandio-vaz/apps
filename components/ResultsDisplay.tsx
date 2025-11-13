@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import type { AnalysisResult } from '../types';
 import { Icon } from './Icon';
@@ -117,7 +116,6 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
                     <TabButton tab="html" label="Página Web" icon="html" />
                     <TabButton tab="markdown" label="Markdown" icon="markdown" />
                     <TabButton tab="pdf" label="PDF" icon="pdf" />
-                    {result.audioBase64 && <TabButton tab="audio" label="Áudio" icon="audio" />}
                 </nav>
             </div>
 
@@ -141,15 +139,6 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result }) => {
                             <Icon name="pdf" className="w-5 h-5" />
                             {isGeneratingPdf ? 'Gerando PDF...' : 'Baixar PDF'}
                         </button>
-                    </div>
-                )}
-                {activeTab === 'audio' && result.audioBase64 && (
-                    <div>
-                        <p className="mb-4">Ouça o resumo executivo da análise gerado por IA.</p>
-                        <audio controls className="w-full">
-                            <source src={`data:audio/mpeg;base64,${result.audioBase64}`} type="audio/mpeg" />
-                            Seu navegador não suporta o elemento de áudio.
-                        </audio>
                     </div>
                 )}
             </div>

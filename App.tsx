@@ -5,6 +5,7 @@ import { OptionsPanel } from './components/OptionsPanel';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { Loader } from './components/Loader';
 import { Header } from './components/Header';
+import { ErrorDisplay } from './components/ErrorDisplay';
 import { analyzeArchitecture, generateAudioSummary, generateDiagramImage } from './services/geminiService';
 import type { AnalysisResult } from './types';
 
@@ -16,7 +17,8 @@ const App: React.FC = () => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [loadingMessage, setLoadingMessage] = useState<string>('');
     const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<Error | string | null>(null);
+    const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
     const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
     useEffect(() => {
@@ -40,14 +42,60 @@ const App: React.FC = () => {
         });
     };
 
+    const updateContext = (value: string) => {
+        setContext(value);
+        if (validationErrors.context) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.context;
+                return newErrors;
+            });
+        }
+    };
+
+    const updateConstraints = (value: string) => {
+        setConstraints(value);
+        if (validationErrors.constraints) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.constraints;
+                return newErrors;
+            });
+        }
+    };
+
+    const updatePriorities = (value: string) => {
+        setPriorities(value);
+        if (validationErrors.priorities) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors.priorities;
+                return newErrors;
+            });
+        }
+    };
+
     const handleAnalyze = useCallback(async () => {
+        setError(null);
+        setValidationErrors({});
+
         if (files.length === 0) {
             setError('Por favor, anexe pelo menos um arquivo de documentação.');
             return;
         }
 
+        const newValidationErrors: { [key: string]: boolean } = {};
+        if (!context.trim()) newValidationErrors.context = true;
+        if (!constraints.trim()) newValidationErrors.constraints = true;
+        if (!priorities.trim()) newValidationErrors.priorities = true;
+
+        if (Object.keys(newValidationErrors).length > 0) {
+            setValidationErrors(newValidationErrors);
+            setError('Por favor, preencha todos os campos obrigatórios.');
+            return;
+        }
+
         setIsLoading(true);
-        setError(null);
         setAnalysisResult(null);
 
         try {
@@ -84,13 +132,20 @@ const App: React.FC = () => {
             
             await Promise.all(promises);
 
-            // Embed the generated image into the HTML content
             let finalHtml = analysisData.html;
+
             if (imageBase64) {
                 const imgTag = `<div class="flex justify-center my-8"><img src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-lg shadow-lg max-w-full h-auto border border-slate-200 dark:border-slate-700" /></div>`;
                 finalHtml = finalHtml.replace('[[DIAGRAM_PLACEHOLDER]]', imgTag);
             } else {
                  finalHtml = finalHtml.replace('[[DIAGRAM_PLACEHOLDER]]', '');
+            }
+
+            if (audioBase64) {
+                const audioPlayerTag = `<div class="my-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow"><h3 class="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">Ouvir Resumo Executivo</h3><audio controls class="w-full"><source src="data:audio/mpeg;base64,${audioBase64}" type="audio/mpeg">Seu navegador não suporta o elemento de áudio.</audio></div>`;
+                finalHtml = finalHtml.replace('[[AUDIO_PLAYER_PLACEHOLDER]]', audioPlayerTag);
+            } else {
+                finalHtml = finalHtml.replace('[[AUDIO_PLAYER_PLACEHOLDER]]', '');
             }
 
             setAnalysisResult({
@@ -101,7 +156,7 @@ const App: React.FC = () => {
 
         } catch (err) {
             console.error(err);
-            setError(err instanceof Error ? `Ocorreu um erro: ${err.message}` : 'Ocorreu um erro desconhecido.');
+            setError(err instanceof Error ? err : new Error('Ocorreu um erro desconhecido.'));
         } finally {
             setIsLoading(false);
             setLoadingMessage('');
@@ -115,7 +170,7 @@ const App: React.FC = () => {
                 <div className="max-w-4xl mx-auto">
                     <div className="bg-white dark:bg-slate-800/50 p-6 sm:p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
                         <div className="text-center mb-8">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Analisador de Arquitetura com IA</h1>
+                            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Analisador de Arquitetura Inteligente</h1>
                             <p className="mt-2 text-slate-600 dark:text-slate-400">Otimize sua arquitetura tecnológica com análises profundas e geração de documentação profissional.</p>
                         </div>
                         
@@ -123,14 +178,15 @@ const App: React.FC = () => {
                             <FileUpload files={files} setFiles={setFiles} />
                             <OptionsPanel 
                                 context={context}
-                                setContext={setContext}
+                                setContext={updateContext}
                                 constraints={constraints}
-                                setConstraints={setConstraints}
+                                setConstraints={updateConstraints}
                                 priorities={priorities}
-                                setPriorities={setPriorities}
+                                setPriorities={updatePriorities}
+                                validationErrors={validationErrors}
                             />
 
-                            {error && <div className="text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-600 rounded-lg p-3 text-center">{error}</div>}
+                            {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
 
                             <div className="text-center pt-4">
                                 <button

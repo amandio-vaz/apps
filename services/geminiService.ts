@@ -46,8 +46,9 @@ Você é um sistema de IA especialista em análise e otimização de arquitetura
 *   **Restrições Conhecidas**: {constraints}
 *   **Prioridades**: {priorities}
 
-**PLACEHOLDER PARA IMAGEM:**
-No documento HTML, insira a string '[[DIAGRAM_PLACEHOLDER]]' onde um diagrama visual gerado por IA deve ser colocado.
+**PLACEHOLDERS (IMPORTANTE):**
+*   **ÁUDIO**: No documento HTML, insira a string '[[AUDIO_PLAYER_PLACEHOLDER]]' EXATAMENTE APÓS a seção "RESUMO EXECUTIVO".
+*   **IMAGEM**: No documento HTML, insira a string '[[DIAGRAM_PLACEHOLDER]]' onde um diagrama visual gerado por IA deve ser colocado (sugestão: dentro de uma das seções de arquitetura proposta).
 
 **INSTRUÇÕES DE SAÍDA:**
 Sua resposta final DEVE ser um objeto JSON válido, sem nenhum texto ou formatação adicional fora do JSON. Siga o schema fornecido.
