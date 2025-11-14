@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { OptionsPanel } from './components/OptionsPanel';
@@ -132,8 +133,8 @@ const App: React.FC = () => {
                            </audio>
                        </div>
                        <div class="print-only">
-                           <h3 class="text-lg font-semibold mb-3 text-slate-800">Resumo Executivo em Áudio</h3>
-                           <p class="text-sm text-slate-600">O resumo executivo em áudio está disponível na versão interativa online desta documentação.</p>
+                           <h3>Resumo Executivo em Áudio</h3>
+                           <p>O resumo executivo em áudio está disponível na versão interativa online desta documentação.</p>
                        </div>
                    </div>`
                 : '';
@@ -166,7 +167,7 @@ const App: React.FC = () => {
             const imageBase64 = await generateDiagramImage(analysisResult.diagramPrompt);
             
             if (imageBase64) {
-                const imgTag = `<div class="flex justify-center my-8"><img src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-lg shadow-lg max-w-full h-auto border border-slate-200 dark:border-slate-700" /></div>`;
+                const imgTag = `<div class="flex justify-center my-8"><img id="aiGeneratedDiagram" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-lg shadow-lg max-w-full h-auto border border-slate-200 dark:border-slate-700" /></div>`;
                 
                 setAnalysisResult(prevResult => {
                     if (!prevResult) return null;
