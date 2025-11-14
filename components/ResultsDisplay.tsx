@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { AnalysisResult } from '../types';
 import { Icon } from './Icon';
 import { Tooltip } from './Tooltip';
@@ -17,8 +17,7 @@ declare global {
 
 interface ResultsDisplayProps {
     result: AnalysisResult;
-    onGenerateDiagram: () => void;
-    isLoading: boolean;
+    onGenerateDiagram: () => Promise<string | null>;
 }
 
 type Tab = 'html' | 'markdown';
@@ -35,7 +34,7 @@ const DownloadButtonContent: React.FC<{
         case 'loading':
             return (
                 <>
-                    <Icon name="spinner" className="w-5 h-5" />
+                    <Icon name="spinner" className="w-5 h-5 animate-spin" />
                     <span>{loadingText}</span>
                 </>
             );
@@ -57,7 +56,7 @@ const DownloadButtonContent: React.FC<{
     }
 };
 
-export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenerateDiagram, isLoading }) => {
+export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenerateDiagram }) => {
     const [activeTab, setActiveTab] = useState<Tab>('html');
     const [downloadStatus, setDownloadStatus] = useState<{
         pdf: DownloadStatus;
@@ -78,6 +77,38 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     // State for pagination
     const [pages, setPages] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
+    const [isMounted, setIsMounted] = useState(false);
+
+    const setStatusWithTimeout = useCallback((key: keyof typeof downloadStatus, status: DownloadStatus, timeout = 2000) => {
+        setDownloadStatus(s => ({ ...s, [key]: status }));
+        if (status === 'success') {
+            setTimeout(() => {
+                setDownloadStatus(s => ({ ...s, [key]: 'idle' }));
+            }, timeout);
+        }
+    }, []);
+
+    useEffect(() => {
+        // Trigger animation shortly after the component mounts
+        const timer = setTimeout(() => setIsMounted(true), 50);
+        return () => clearTimeout(timer);
+    }, []);
+
+    // Automatically generate the diagram if a prompt is available
+    useEffect(() => {
+        if (result.diagramPrompt && result.html.includes('[[DIAGRAM_PLACEHOLDER]]')) {
+            const autoGenerate = async () => {
+                setStatusWithTimeout('diagram', 'loading', 0);
+                const imageBase64 = await onGenerateDiagram();
+                if (imageBase64) {
+                    setStatusWithTimeout('diagram', 'success', 2000);
+                } else {
+                    setStatusWithTimeout('diagram', 'idle', 0);
+                }
+            };
+            autoGenerate();
+        }
+    }, [result.diagramPrompt, onGenerateDiagram, setStatusWithTimeout, result.html]);
 
     useEffect(() => {
         const diagramElement = document.getElementById('aiGeneratedDiagram');
@@ -101,14 +132,31 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
 
 
     const showGenerateDiagramButton = result.diagramPrompt && result.html.includes('[[DIAGRAM_PLACEHOLDER]]');
+    const showDiagramGenerationUI = showGenerateDiagramButton || downloadStatus.diagram !== 'idle';
 
-    const setStatusWithTimeout = (key: keyof typeof downloadStatus, status: DownloadStatus, timeout = 2000) => {
-        setDownloadStatus(s => ({ ...s, [key]: status }));
-        if (status === 'success') {
-            setTimeout(() => {
-                setDownloadStatus(s => ({ ...s, [key]: 'idle' }));
-            }, timeout);
+
+    const handleGenerateDiagramClick = async () => {
+        if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading') return;
+
+        setStatusWithTimeout('diagram', 'loading', 0);
+        const imageBase64 = await onGenerateDiagram();
+        
+        if (imageBase64) {
+            triggerPngDownload(imageBase64, 'diagrama-arquitetura-ia.png');
+            setStatusWithTimeout('diagram', 'success', 2000);
+        } else {
+            // Error case is handled in App.tsx, just reset the button state
+            setStatusWithTimeout('diagram', 'idle', 0);
         }
+    };
+
+    const triggerPngDownload = (base64Data: string, filename: string) => {
+        const link = document.createElement('a');
+        link.href = `data:image/jpeg;base64,${base64Data}`;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const handleDownloadPdf = async () => {
@@ -245,7 +293,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         });
     };
     
-    const baseButtonClass = "inline-flex items-center justify-center gap-2 w-44 text-white font-bold py-2 px-4 rounded-lg transition-colors";
+    const baseButtonClass = "inline-flex items-center justify-center gap-2 w-full sm:w-auto text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-60";
 
     const TabButton: React.FC<{ tab: Tab; label: string; icon: string; tooltip: string }> = ({ tab, label, icon, tooltip }) => (
         <Tooltip text={tooltip}>
@@ -255,14 +303,15 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                 aria-selected={activeTab === tab}
                 aria-controls={`tabpanel-${tab}`}
                 onClick={() => setActiveTab(tab)}
-                className={`flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                className={`relative flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-t-md transition-all duration-300 transform hover:scale-110 ${
                     activeTab === tab 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    ? 'text-sky-400' 
+                    : 'text-slate-600 dark:text-slate-300 hover:text-sky-500 dark:hover:text-sky-400'
                 }`}
             >
                 <Icon name={icon} className="w-5 h-5" />
                 <span>{label}</span>
+                {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-sky-400 rounded-full" />}
             </button>
         </Tooltip>
     );
@@ -271,12 +320,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         if (pages.length <= 1) return null;
 
         return (
-            <div className="flex justify-between items-center my-6 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg no-print">
+            <div className="flex justify-between items-center my-6 p-3 bg-white/10 dark:bg-slate-900/50 rounded-lg no-print">
                 <Tooltip text="Ir para a página anterior do documento.">
                     <button
                         onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
                         disabled={currentPage === 0}
-                        className="inline-flex items-center gap-2 bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="inline-flex items-center gap-2 bg-white/20 dark:bg-slate-700/50 hover:bg-white/30 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"
                     >
                         Anterior
                     </button>
@@ -288,7 +337,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                     <button
                         onClick={() => setCurrentPage(p => Math.min(pages.length - 1, p + 1))}
                         disabled={currentPage === pages.length - 1}
-                        className="inline-flex items-center gap-2 bg-white dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="inline-flex items-center gap-2 bg-white/20 dark:bg-slate-700/50 hover:bg-white/30 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"
                     >
                         Próximo
                     </button>
@@ -298,21 +347,19 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     };
 
     return (
-        <div className="bg-white dark:bg-slate-800/50 p-6 sm:p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
-            <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Resultados da Análise</h2>
-                <div className="flex items-center gap-2 flex-wrap">
+        <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
+            <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all duration-500 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Resultados da Análise</h2>
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 flex-wrap">
                     {isDiagramVisible && (
                         <Tooltip text="Baixar o diagrama de arquitetura gerado pela IA como uma imagem PNG.">
                             <button
                                 onClick={handleDownloadDiagram}
                                 disabled={downloadStatus.diagram !== 'idle'}
-                                className={`${baseButtonClass} ${
-                                    downloadStatus.diagram === 'success' ? 'bg-green-600' : 'bg-teal-600 hover:bg-teal-700'
-                                } disabled:bg-slate-400 ${downloadStatus.diagram === 'loading' ? 'cursor-wait' : ''}`}
+                                className={`${baseButtonClass} bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600`}
                                 aria-label="Baixar diagrama como imagem PNG"
                             >
-                                <DownloadButtonContent status={downloadStatus.diagram} idleIcon="diagram" idleText="Exportar .PNG" loadingText="Baixando..." />
+                                <DownloadButtonContent status={downloadStatus.diagram} idleIcon="diagram" idleText=".PNG" loadingText="Baixando..." />
                             </button>
                         </Tooltip>
                     )}
@@ -321,12 +368,10 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                             <button
                                 onClick={handleDownloadAudio}
                                 disabled={downloadStatus.audio !== 'idle'}
-                                className={`${baseButtonClass} ${
-                                    downloadStatus.audio === 'success' ? 'bg-green-600' : 'bg-purple-600 hover:bg-purple-700'
-                                } disabled:bg-slate-400 ${downloadStatus.audio === 'loading' ? 'cursor-wait' : ''}`}
+                                className={`${baseButtonClass} bg-gradient-to-r from-purple-500 to-violet-500 hover:from-purple-600 hover:to-violet-600`}
                                 aria-label="Baixar resumo em áudio no formato MP3"
                             >
-                                <DownloadButtonContent status={downloadStatus.audio} idleIcon="audio" idleText="Exportar .MP3" loadingText="Baixando..." />
+                                <DownloadButtonContent status={downloadStatus.audio} idleIcon="audio" idleText=".MP3" loadingText="Baixando..." />
                             </button>
                         </Tooltip>
                     )}
@@ -334,31 +379,27 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                         <button
                             onClick={handleDownloadMarkdown}
                             disabled={downloadStatus.markdown !== 'idle'}
-                            className={`${baseButtonClass} ${
-                                downloadStatus.markdown === 'success' ? 'bg-green-600' : 'bg-slate-500 hover:bg-slate-600'
-                            } disabled:bg-slate-400 ${downloadStatus.markdown === 'loading' ? 'cursor-wait' : ''}`}
+                            className={`${baseButtonClass} bg-gradient-to-r from-slate-500 to-gray-500 hover:from-slate-600 hover:to-gray-600`}
                             aria-label="Baixar análise em formato Markdown"
                         >
-                             <DownloadButtonContent status={downloadStatus.markdown} idleIcon="download" idleText="Exportar .MD" loadingText="Baixando..." />
+                             <DownloadButtonContent status={downloadStatus.markdown} idleIcon="download" idleText=".MD" loadingText="Baixando..." />
                         </button>
                     </Tooltip>
                     <Tooltip text="Gerar e baixar um relatório completo e profissional no formato PDF.">
                         <button
                             onClick={handleDownloadPdf}
                             disabled={downloadStatus.pdf !== 'idle'}
-                            className={`${baseButtonClass} ${
-                                downloadStatus.pdf === 'success' ? 'bg-green-600' : 'bg-red-600 hover:bg-red-700'
-                            } disabled:bg-slate-400 ${downloadStatus.pdf === 'loading' ? 'cursor-wait' : ''}`}
+                            className={`${baseButtonClass} bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600`}
                             aria-label="Exportar análise para formato PDF"
                         >
-                            <DownloadButtonContent status={downloadStatus.pdf} idleIcon="pdf" idleText="Exportar PDF" />
+                            <DownloadButtonContent status={downloadStatus.pdf} idleIcon="pdf" idleText="PDF" />
                         </button>
                     </Tooltip>
                 </div>
             </div>
             
-            <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
-                <nav role="tablist" aria-label="Formatos de resultado" className="flex flex-wrap items-center space-x-2 sm:space-x-4 -mb-px">
+            <div className={`border-b border-slate-200/20 dark:border-slate-700/50 mb-6 transition-all duration-500 ease-out delay-150 ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                <nav role="tablist" aria-label="Formatos de resultado" className="flex flex-wrap items-center space-x-2 sm:space-x-4">
                     <TabButton tab="html" label="Página Web" icon="html" tooltip="Visualizar o relatório como uma página web interativa." />
                     <div className="flex items-center gap-2">
                         <TabButton tab="markdown" label="Markdown" icon="markdown" tooltip="Visualizar o relatório em formato Markdown puro." />
@@ -366,7 +407,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                             <Tooltip text="Copiar todo o conteúdo Markdown para a área de transferência.">
                                 <button
                                     onClick={handleCopyMarkdown}
-                                    className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-colors bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+                                    className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-all bg-slate-200/20 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300 hover:bg-slate-300/30 dark:hover:bg-slate-600/60 transform hover:scale-105"
                                     aria-label="Copiar conteúdo Markdown para a área de transferência"
                                 >
                                     {isCopied ? (
@@ -392,7 +433,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
               {copyStatusMessage}
             </div>
 
-            <div className="prose prose-slate dark:prose-invert max-w-none">
+            <div className={`prose prose-slate dark:prose-invert max-w-none prose-p:text-slate-300 prose-headings:text-white prose-strong:text-white transition-opacity duration-700 ease-out delay-300 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
                 <div 
                     id="tabpanel-html"
                     role="tabpanel"
@@ -400,18 +441,27 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                     aria-labelledby="tab-html"
                     hidden={activeTab !== 'html'}
                 >
-                    {showGenerateDiagramButton && (
-                        <div className="my-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow text-center no-print border border-slate-200 dark:border-slate-700">
+                     {showDiagramGenerationUI && (
+                        <div className="my-6 p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center no-print border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
                             <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">Visualização da Arquitetura</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Um diagrama visual pode ser gerado por IA para esta seção.</p>
-                            <Tooltip text="Solicitar à IA que gere um diagrama visual da arquitetura com base na análise.">
+                            <Tooltip text="Solicitar à IA que gere e baixe um diagrama visual da arquitetura.">
                                 <button
-                                    onClick={onGenerateDiagram}
-                                    disabled={isLoading}
-                                    className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:bg-slate-400 dark:disabled:bg-slate-600 transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed"
+                                    onClick={handleGenerateDiagramClick}
+                                    disabled={downloadStatus.diagram === 'loading' || !showGenerateDiagramButton}
+                                    className={`inline-flex items-center justify-center gap-2 w-56 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed
+                                        ${downloadStatus.diagram === 'success' ? 'bg-green-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}
+                                        ${downloadStatus.diagram === 'loading' ? 'bg-slate-500 cursor-wait' : ''}
+                                        ${downloadStatus.diagram === 'idle' && !showGenerateDiagramButton ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}
+                                    `}
                                 >
-                                    <Icon name="diagram" className="w-5 h-5" />
-                                    Gerar Diagrama com IA
+                                   <DownloadButtonContent 
+                                        status={downloadStatus.diagram}
+                                        idleIcon="diagram"
+                                        idleText="Gerar Diagrama com IA"
+                                        loadingText="Gerando Diagrama..."
+                                        successText="Diagrama Gerado!"
+                                   />
                                 </button>
                             </Tooltip>
                         </div>
@@ -427,7 +477,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                     aria-labelledby="tab-markdown"
                     hidden={activeTab !== 'markdown'}
                 >
-                    <pre className="whitespace-pre-wrap bg-slate-100 dark:bg-slate-900 p-4 rounded-md text-sm text-slate-800 dark:text-slate-200">
+                    <pre className="whitespace-pre-wrap bg-slate-500/10 dark:bg-slate-900/50 p-4 rounded-md text-sm text-slate-800 dark:text-slate-200">
                         <code>{result.markdown}</code>
                     </pre>
                 </div>

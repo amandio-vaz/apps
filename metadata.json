@@ -1,5 +1,5 @@
 {
-  "name": "GPS IT - Engenharia: AI Architecture Analyzer App",
+  "name": "StackArch Cortex Platform",
   "description": "An AI system for comparative analysis and optimization of technological architectures. It processes technical documentation, performs validations, and generates enhanced professional documentation in multiple formats including PDF, Markdown, HTML, and narrated audio.",
   "requestFramePermissions": []
 }

@@ -32,10 +32,18 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        const body = document.body;
+        // Definindo uma transição para suavizar a mudança de cores
+        body.style.transition = 'background-color 0.3s ease, color 0.3s ease';
+
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
+            body.classList.add('animated-gradient-bg', 'text-slate-200');
+            body.classList.remove('bg-slate-50', 'text-slate-800');
         } else {
             document.documentElement.classList.remove('dark');
+            body.classList.remove('animated-gradient-bg', 'text-slate-200');
+            body.classList.add('bg-slate-50', 'text-slate-800');
         }
     }, [theme]);
 
@@ -60,6 +68,12 @@ const App: React.FC = () => {
                 delete newErrors.context;
                 return newErrors;
             });
+        }
+    };
+    
+    const validateContextOnBlur = () => {
+        if (!context.trim()) {
+            setValidationErrors(prev => ({...prev, context: true}));
         }
     };
 
@@ -166,11 +180,9 @@ const App: React.FC = () => {
         }
     }, [files, context, constraints, priorities, voice, narrationStyle]);
 
-    const handleGenerateDiagram = async () => {
-        if (!analysisResult?.diagramPrompt || isLoading) return;
+    const handleGenerateDiagram = useCallback(async (): Promise<string | null> => {
+        if (!analysisResult?.diagramPrompt) return null;
     
-        setIsLoading(true);
-        setLoadingMessage('Criando diagrama visual com IA...');
         setError(null);
     
         try {
@@ -187,8 +199,10 @@ const App: React.FC = () => {
                         diagramPrompt: null, 
                     };
                 });
+                return imageBase64;
             } else {
                 setError(new Error('A geração da imagem não retornou dados.'));
+                return null;
             }
     
         } catch (err) {
@@ -203,11 +217,9 @@ const App: React.FC = () => {
                     diagramPrompt: null,
                 };
             });
-        } finally {
-            setIsLoading(false);
-            setLoadingMessage('');
+            return null;
         }
-    };
+    }, [analysisResult]);
 
     const handleLoadHistoryEntry = (result: AnalysisResult) => {
         setAnalysisResult(result);
@@ -223,14 +235,14 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen transition-colors duration-300">
+        <div className="flex flex-col min-h-screen">
             <Header theme={theme} toggleTheme={toggleTheme} />
-            <main className="container mx-auto px-4 py-8">
-                <div className="max-w-4xl mx-auto">
-                    <div className="bg-white dark:bg-slate-800/50 p-6 sm:p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700">
+            <main className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-grow">
+                <div className="space-y-12">
+                    <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
                         <div className="text-center mb-8">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white">Analisador de Arquitetura Inteligente</h1>
-                            <p className="mt-2 text-slate-600 dark:text-slate-400">Otimize sua arquitetura tecnológica com análises profundas e geração de documentação profissional.</p>
+                            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Analisador de Arquitetura Inteligente</h2>
+                            <p className="mt-2 text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">Otimize sua arquitetura tecnológica com análises profundas e geração de documentação profissional.</p>
                         </div>
                         
                         <div className="space-y-8">
@@ -247,6 +259,7 @@ const App: React.FC = () => {
                                 setVoice={setVoice}
                                 narrationStyle={narrationStyle}
                                 setNarrationStyle={setNarrationStyle}
+                                validateContextOnBlur={validateContextOnBlur}
                             />
 
                             {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
@@ -256,7 +269,7 @@ const App: React.FC = () => {
                                     <button
                                         onClick={handleAnalyze}
                                         disabled={isLoading || files.length === 0}
-                                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed"
+                                        className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 disabled:from-slate-400 disabled:to-slate-500 dark:disabled:from-slate-600 dark:disabled:to-slate-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-blue-500/50 transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed disabled:shadow-none"
                                     >
                                         {isLoading ? 'Analisando...' : 'Analisar Arquitetura'}
                                     </button>
@@ -276,16 +289,20 @@ const App: React.FC = () => {
                     {isLoading && <Loader message={loadingMessage} />}
 
                     {analysisResult && (
-                        <div className="mt-12" ref={resultsRef}>
+                        <div ref={resultsRef}>
                             <ResultsDisplay 
                                 result={analysisResult}
                                 onGenerateDiagram={handleGenerateDiagram}
-                                isLoading={isLoading}
                              />
                         </div>
                     )}
                 </div>
             </main>
+            <footer className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
+                <p>
+                    Desenvolvido com ❤️ por Amândio Vaz - 2025
+                </p>
+            </footer>
         </div>
     );
 };

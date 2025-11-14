@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { UploadedFile, GeminiAnalysisResponse } from '../types';
 
@@ -118,6 +119,8 @@ export const generateAudioSummary = async (
         'Profissional e Claro': 'de forma clara, profissional e com uma voz natural',
         'Entusiasmado e Dinâmico': 'com entusiasmo, de forma dinâmica e com uma voz energética',
         'Calmo e Ponderado': 'de forma calma, ponderada e com uma voz suave',
+        'Formal e Conciso': 'de forma formal, concisa e com uma voz direta',
+        'Narrativa Cativante': 'como se estivesse contando uma história cativante, com uma voz envolvente e expressiva',
     };
 
     const instruction = styleInstructions[narrationStyle] || styleInstructions['Profissional e Claro'];
