@@ -69,6 +69,42 @@
         orphans: 3;
         widows: 3;
       }
+
+      /* Destaque aprimorado para blocos de código */
+      .prose pre {
+        background-color: #f3f4f6;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 1.25rem;
+        overflow-x: auto;
+        font-size: 0.9em;
+        line-height: 1.6;
+      }
+      .dark .prose pre {
+        background-color: #1f2937;
+        border-color: #374151;
+      }
+      .prose pre code {
+        background-color: transparent;
+        border: none;
+        padding: 0;
+        color: #111827;
+      }
+      .dark .prose pre code {
+        color: #e5e7eb;
+      }
+
+      /* Estilo especial para diagramas Mermaid para garantir fundo claro */
+      .prose pre code.language-mermaid {
+        display: flex;
+        justify-content: center;
+        background-color: #f9fafb;
+        padding: 1rem;
+        border-radius: 0.25rem;
+      }
+       .dark .prose pre code.language-mermaid {
+        background-color: #f9fafb;
+      }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoVBL5gI9kLmbG4dTYdGUxbGuDDlMA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>

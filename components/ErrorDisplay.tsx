@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { Icon } from './Icon';
+import { Tooltip } from './Tooltip';
 
 interface ErrorDisplayProps {
     error: Error | string;
@@ -26,19 +26,23 @@ export const ErrorDisplay: React.FC<ErrorDisplayProps> = ({ error, onDismiss }) 
                     <p className="text-sm text-red-700 dark:text-red-300 mt-1">{message}</p>
                     {hasDetails && (
                          <div className="mt-2">
-                             <button
-                                 onClick={() => setIsDetailsOpen(!isDetailsOpen)}
-                                 className="text-sm font-medium text-red-600 dark:text-red-400 hover:underline focus:outline-none"
-                             >
-                                 {isDetailsOpen ? 'Esconder detalhes' : 'Mostrar detalhes'}
-                             </button>
+                            <Tooltip text="Exibir ou ocultar os detalhes técnicos do erro.">
+                                <button
+                                    onClick={() => setIsDetailsOpen(!isDetailsOpen)}
+                                    className="text-sm font-medium text-red-600 dark:text-red-400 hover:underline focus:outline-none"
+                                >
+                                    {isDetailsOpen ? 'Esconder detalhes' : 'Mostrar detalhes'}
+                                </button>
+                            </Tooltip>
                          </div>
                     )}
                 </div>
                 <div className="ml-auto pl-3">
-                    <button onClick={onDismiss} aria-label="Dismiss" className="p-1 -mt-1 -mr-1 rounded-full text-red-500 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800/50 focus:outline-none focus:ring-2 focus:ring-red-500">
-                        <Icon name="close" className="w-5 h-5" />
-                    </button>
+                    <Tooltip text="Fechar esta notificação de erro.">
+                        <button onClick={onDismiss} aria-label="Fechar notificação de erro" className="p-1 -mt-1 -mr-1 rounded-full text-red-500 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-800/50 focus:outline-none focus:ring-2 focus:ring-red-500">
+                            <Icon name="close" className="w-5 h-5" />
+                        </button>
+                    </Tooltip>
                 </div>
             </div>
             {hasDetails && isDetailsOpen && (

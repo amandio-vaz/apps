@@ -1,16 +1,15 @@
-
-
-
-
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { OptionsPanel } from './components/OptionsPanel';
 import { ResultsDisplay } from './components/ResultsDisplay';
 import { Loader } from './components/Loader';
 import { Header } from './components/Header';
 import { ErrorDisplay } from './components/ErrorDisplay';
+import { HistoryPanel } from './components/HistoryPanel';
+import { Tooltip } from './components/Tooltip';
 import { analyzeArchitecture, generateAudioSummary, generateDiagramImage } from './services/geminiService';
-import type { AnalysisResult } from './types';
+import { getHistory, addHistoryEntry, clearHistory } from './services/historyService';
+import type { AnalysisResult, HistoryEntry } from './types';
 
 const App: React.FC = () => {
     const [files, setFiles] = useState<File[]>([]);
@@ -25,8 +24,12 @@ const App: React.FC = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>('dark');
     const [voice, setVoice] = useState<string>('Puck');
     const [narrationStyle, setNarrationStyle] = useState<string>('Profissional e Claro');
-    const [isGeneratingDiagram, setIsGeneratingDiagram] = useState<boolean>(false);
+    const [history, setHistory] = useState<HistoryEntry[]>([]);
+    const resultsRef = useRef<HTMLDivElement>(null);
 
+    useEffect(() => {
+        setHistory(getHistory());
+    }, []);
 
     useEffect(() => {
         if (theme === 'dark') {
@@ -143,12 +146,16 @@ const App: React.FC = () => {
 
             const finalHtml = analysisData.html.replace('[[AUDIO_PLAYER_PLACEHOLDER]]', audioPlayerTag);
 
-            setAnalysisResult({
+            const resultPayload: AnalysisResult = {
                 html: finalHtml,
                 markdown: analysisData.markdown,
                 audioBase64: audioBase64,
                 diagramPrompt: analysisData.diagramPrompt || null,
-            });
+            };
+
+            setAnalysisResult(resultPayload);
+            const newHistory = addHistoryEntry(resultPayload, files, analysisData.audioSummary);
+            setHistory(newHistory);
 
         } catch (err) {
             console.error(err);
@@ -160,9 +167,10 @@ const App: React.FC = () => {
     }, [files, context, constraints, priorities, voice, narrationStyle]);
 
     const handleGenerateDiagram = async () => {
-        if (!analysisResult?.diagramPrompt || isGeneratingDiagram) return;
+        if (!analysisResult?.diagramPrompt || isLoading) return;
     
-        setIsGeneratingDiagram(true);
+        setIsLoading(true);
+        setLoadingMessage('Criando diagrama visual com IA...');
         setError(null);
     
         try {
@@ -196,8 +204,22 @@ const App: React.FC = () => {
                 };
             });
         } finally {
-            setIsGeneratingDiagram(false);
+            setIsLoading(false);
+            setLoadingMessage('');
         }
+    };
+
+    const handleLoadHistoryEntry = (result: AnalysisResult) => {
+        setAnalysisResult(result);
+        setError(null);
+        setTimeout(() => {
+            resultsRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+    };
+
+    const handleClearHistory = () => {
+        clearHistory();
+        setHistory([]);
     };
 
     return (
@@ -230,25 +252,35 @@ const App: React.FC = () => {
                             {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
 
                             <div className="text-center pt-4">
-                                <button
-                                    onClick={handleAnalyze}
-                                    disabled={isLoading || files.length === 0}
-                                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed"
-                                >
-                                    {isLoading ? 'Analisando...' : 'Analisar Arquitetura'}
-                                </button>
+                                <Tooltip text={files.length === 0 ? "Adicione ao menos um arquivo para iniciar a análise." : "Iniciar a análise da arquitetura com base nos documentos e opções fornecidas."} className="w-full sm:w-auto">
+                                    <button
+                                        onClick={handleAnalyze}
+                                        disabled={isLoading || files.length === 0}
+                                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 dark:disabled:bg-slate-600 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed"
+                                    >
+                                        {isLoading ? 'Analisando...' : 'Analisar Arquitetura'}
+                                    </button>
+                                </Tooltip>
                             </div>
                         </div>
                     </div>
 
+                    {history.length > 0 && (
+                        <HistoryPanel
+                            history={history}
+                            onLoadEntry={handleLoadHistoryEntry}
+                            onClearHistory={handleClearHistory}
+                        />
+                    )}
+
                     {isLoading && <Loader message={loadingMessage} />}
 
                     {analysisResult && (
-                        <div className="mt-12">
+                        <div className="mt-12" ref={resultsRef}>
                             <ResultsDisplay 
                                 result={analysisResult}
                                 onGenerateDiagram={handleGenerateDiagram}
-                                isGeneratingDiagram={isGeneratingDiagram}
+                                isLoading={isLoading}
                              />
                         </div>
                     )}

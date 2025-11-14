@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { Tooltip } from './Tooltip';
 
 interface OptionsPanelProps {
     context: string;
@@ -29,106 +29,122 @@ export const OptionsPanel: React.FC<OptionsPanelProps> = ({
     return (
         <div className="space-y-8">
             {/* Section 2 */}
-            <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">2. Definir Contexto e Prioridades</h2>
-                <p className="text-sm text-slate-600 dark:text-slate-400">Forneça os detalhes essenciais para guiar a análise da IA.</p>
+            <section role="group" aria-labelledby="context-heading" className="space-y-4">
+                <h2 id="context-heading" className="text-xl font-semibold text-slate-800 dark:text-slate-200">2. Definir Contexto e Prioridades</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-400">Forneça os detalhes essenciais para guiar a análise da IA. Campos marcados com <span className="text-red-500 font-semibold" aria-hidden="true">*</span> são obrigatórios.</p>
                 <div className="space-y-4">
                     <div>
                         <label htmlFor="context" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Contexto/Domínio
+                            Contexto/Domínio <span className="text-red-500" aria-hidden="true">*</span>
                         </label>
-                        <input
-                            id="context"
-                            type="text"
-                            value={context}
-                            onChange={(e) => setContext(e.target.value)}
-                            placeholder="Ex: E-commerce B2C de alta disponibilidade"
-                            className={`${commonInputClasses} ${validationErrors.context ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
-                            aria-invalid={validationErrors.context ? 'true' : 'false'}
-                        />
-                        {validationErrors.context && <p className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">Este campo é obrigatório.</p>}
+                        <Tooltip text="Descreva o propósito e o ambiente da arquitetura. Ex: Sistema de e-commerce B2C com foco em alta disponibilidade." className="w-full">
+                            <input
+                                id="context"
+                                type="text"
+                                value={context}
+                                onChange={(e) => setContext(e.target.value)}
+                                placeholder="Ex: E-commerce B2C de alta disponibilidade"
+                                className={`${commonInputClasses} ${validationErrors.context ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
+                                aria-required="true"
+                                aria-invalid={validationErrors.context ? 'true' : 'false'}
+                                aria-describedby={validationErrors.context ? "context-error" : undefined}
+                            />
+                        </Tooltip>
+                        {validationErrors.context && <p id="context-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">Este campo é obrigatório.</p>}
                     </div>
                     <div>
                         <label htmlFor="constraints" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Restrições Conhecidas
+                            Restrições Conhecidas <span className="text-red-500" aria-hidden="true">*</span>
                         </label>
-                        <input
-                            id="constraints"
-                            type="text"
-                            value={constraints}
-                            onChange={(e) => setConstraints(e.target.value)}
-                            placeholder="Insira seus principais desafios e restrições"
-                            className={`${commonInputClasses} ${validationErrors.constraints ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
-                            aria-invalid={validationErrors.constraints ? 'true' : 'false'}
-                        />
-                        {validationErrors.constraints && <p className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">Este campo é obrigatório.</p>}
+                        <Tooltip text="Liste as limitações técnicas ou de negócio. Ex: Orçamento limitado, equipe pequena, uso obrigatório de AWS." className="w-full">
+                            <input
+                                id="constraints"
+                                type="text"
+                                value={constraints}
+                                onChange={(e) => setConstraints(e.target.value)}
+                                placeholder="Insira seus principais desafios e restrições"
+                                className={`${commonInputClasses} ${validationErrors.constraints ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
+                                aria-required="true"
+                                aria-invalid={validationErrors.constraints ? 'true' : 'false'}
+                                aria-describedby={validationErrors.constraints ? "constraints-error" : undefined}
+                            />
+                        </Tooltip>
+                        {validationErrors.constraints && <p id="constraints-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">Este campo é obrigatório.</p>}
                     </div>
                     <div>
                         <label htmlFor="priorities" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                            Prioridades
+                            Prioridades <span className="text-red-500" aria-hidden="true">*</span>
                         </label>
-                        <input
-                            id="priorities"
-                            type="text"
-                            value={priorities}
-                            onChange={(e) => setPriorities(e.target.value)}
-                            placeholder="Insira suas prioridades para aprimoramento da arquitetura"
-                            className={`${commonInputClasses} ${validationErrors.priorities ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
-                            aria-invalid={validationErrors.priorities ? 'true' : 'false'}
-                        />
-                        {validationErrors.priorities && <p className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">Este campo é obrigatório.</p>}
+                        <Tooltip text="Indique os principais objetivos da otimização. Ex: Redução de custos, aumento de performance, melhoria na segurança." className="w-full">
+                            <input
+                                id="priorities"
+                                type="text"
+                                value={priorities}
+                                onChange={(e) => setPriorities(e.target.value)}
+                                placeholder="Insira suas prioridades para aprimoramento da arquitetura"
+                                className={`${commonInputClasses} ${validationErrors.priorities ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'}`}
+                                aria-required="true"
+                                aria-invalid={validationErrors.priorities ? 'true' : 'false'}
+                                aria-describedby={validationErrors.priorities ? "priorities-error" : undefined}
+                            />
+                        </Tooltip>
+                        {validationErrors.priorities && <p id="priorities-error" className="mt-1 text-sm text-red-600 dark:text-red-400" role="alert">Este campo é obrigatório.</p>}
                     </div>
                 </div>
-            </div>
+            </section>
 
             {/* Section 3 */}
-            <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-200">3. Opções de Áudio</h2>
+            <section role="group" aria-labelledby="audio-heading" className="space-y-4">
+                <h2 id="audio-heading" className="text-xl font-semibold text-slate-800 dark:text-slate-200">3. Opções de Áudio</h2>
                 <p className="text-sm text-slate-600 dark:text-slate-400">Personalize a narração do resumo executivo.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="voice" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Voz
                         </label>
-                        <div className="relative">
-                            <select
-                                id="voice"
-                                value={voice}
-                                onChange={(e) => setVoice(e.target.value)}
-                                className={commonSelectClasses}
-                            >
-                                <option value="Puck">Masculina Profissional</option>
-                                <option value="Zephyr">Masculina Amigável</option>
-                                <option value="Charon">Feminina Profissional</option>
-                                <option value="Kore">Feminina Suave</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
-                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        <Tooltip text="Escolha a voz para a narração do resumo em áudio.">
+                            <div className="relative">
+                                <select
+                                    id="voice"
+                                    value={voice}
+                                    onChange={(e) => setVoice(e.target.value)}
+                                    className={commonSelectClasses}
+                                >
+                                    <option value="Puck">Masculina Profissional</option>
+                                    <option value="Zephyr">Masculina Amigável</option>
+                                    <option value="Charon">Feminina Profissional</option>
+                                    <option value="Kore">Feminina Suave</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                </div>
                             </div>
-                        </div>
+                        </Tooltip>
                     </div>
                     <div>
                         <label htmlFor="narrationStyle" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                             Estilo de Narração
                         </label>
-                         <div className="relative">
-                            <select
-                                id="narrationStyle"
-                                value={narrationStyle}
-                                onChange={(e) => setNarrationStyle(e.target.value)}
-                                className={commonSelectClasses}
-                            >
-                                <option>Profissional e Claro</option>
-                                <option>Entusiasmado e Dinâmico</option>
-                                <option>Calmo e Ponderado</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
-                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        <Tooltip text="Defina o tom da narração para o resumo em áudio.">
+                             <div className="relative">
+                                <select
+                                    id="narrationStyle"
+                                    value={narrationStyle}
+                                    onChange={(e) => setNarrationStyle(e.target.value)}
+                                    className={commonSelectClasses}
+                                >
+                                    <option>Profissional e Claro</option>
+                                    <option>Entusiasmado e Dinâmico</option>
+                                    <option>Calmo e Ponderado</option>
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                </div>
                             </div>
-                        </div>
+                        </Tooltip>
                     </div>
                 </div>
-            </div>
+            </section>
         </div>
     );
 };

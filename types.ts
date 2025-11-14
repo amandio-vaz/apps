@@ -1,4 +1,3 @@
-
 export interface UploadedFile {
     name: string;
     mimeType: string;
@@ -17,4 +16,12 @@ export interface GeminiAnalysisResponse {
     markdown: string;
     audioSummary: string;
     diagramPrompt: string;
+}
+
+export interface HistoryEntry {
+    id: number;
+    date: string;
+    files: string[];
+    summary: string;
+    result: AnalysisResult;
 }
