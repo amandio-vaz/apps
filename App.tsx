@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { OptionsPanel } from './components/OptionsPanel';
@@ -124,7 +126,7 @@ const App: React.FC = () => {
             }
 
             const audioPlayerTag = audioBase64
-                ? `<div class="my-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow">
+                ? `<div class="my-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg shadow pdf-no-break">
                        <div class="no-print">
                            <h3 class="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">Ouvir Resumo Executivo</h3>
                            <audio controls class="w-full">
@@ -167,7 +169,7 @@ const App: React.FC = () => {
             const imageBase64 = await generateDiagramImage(analysisResult.diagramPrompt);
             
             if (imageBase64) {
-                const imgTag = `<div class="flex justify-center my-8"><img id="aiGeneratedDiagram" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-lg shadow-lg max-w-full h-auto border border-slate-200 dark:border-slate-700" /></div>`;
+                const imgTag = `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"><img id="aiGeneratedDiagram" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-md shadow-lg w-full h-auto object-contain" /><figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual gerado por IA.</figcaption></figure>`;
                 
                 setAnalysisResult(prevResult => {
                     if (!prevResult) return null;

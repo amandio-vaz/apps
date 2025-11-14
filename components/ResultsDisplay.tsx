@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import type { AnalysisResult } from '../types';
 import { Icon } from './Icon';
@@ -27,6 +26,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [activeTab, setActiveTab] = useState<Tab>('html');
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isDiagramVisible, setIsDiagramVisible] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
 
     useEffect(() => {
         const diagramElement = document.getElementById('aiGeneratedDiagram');
@@ -159,6 +159,17 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         document.body.removeChild(link);
     };
 
+    const handleCopyMarkdown = () => {
+        if (!result.markdown) return;
+        navigator.clipboard.writeText(result.markdown).then(() => {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        }).catch(err => {
+            console.error('Falha ao copiar o texto: ', err);
+            alert('Falha ao copiar o texto.');
+        });
+    };
+
     const TabButton: React.FC<{ tab: Tab; label: string; icon: string }> = ({ tab, label, icon }) => (
         <button
             onClick={() => setActiveTab(tab)}
@@ -221,7 +232,28 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
                 <nav className="flex flex-wrap items-center space-x-2 sm:space-x-4 -mb-px">
                     <TabButton tab="html" label="Página Web" icon="html" />
-                    <TabButton tab="markdown" label="Markdown" icon="markdown" />
+                    <div className="flex items-center gap-2">
+                        <TabButton tab="markdown" label="Markdown" icon="markdown" />
+                        {activeTab === 'markdown' && (
+                            <button
+                                onClick={handleCopyMarkdown}
+                                className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md transition-colors bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600"
+                                title="Copiar para a área de transferência"
+                            >
+                                {isCopied ? (
+                                    <>
+                                        <Icon name="check" className="w-4 h-4 text-green-500" />
+                                        <span>Copiado!</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icon name="copy" className="w-4 h-4" />
+                                        <span>Copiar</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
                 </nav>
             </div>
 

@@ -58,11 +58,16 @@
       }
 
       /* Melhora a quebra de página para a geração de PDF */
-      .pdf-rendering h1, .pdf-rendering h2, .pdf-rendering h3 {
+      .pdf-rendering h1, .pdf-rendering h2, .pdf-rendering h3, .pdf-rendering h4 {
         page-break-after: avoid;
-      }
-      .pdf-rendering img, .pdf-rendering pre, .pdf-rendering table {
         page-break-inside: avoid;
+      }
+      .pdf-rendering img, .pdf-rendering pre, .pdf-rendering table, .pdf-rendering blockquote, .pdf-rendering figure, .pdf-rendering ul, .pdf-rendering ol, .pdf-rendering .pdf-no-break {
+        page-break-inside: avoid;
+      }
+      .pdf-rendering p, .pdf-rendering li {
+        orphans: 3;
+        widows: 3;
       }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoVBL5gI9kLmbG4dTYdGUxbGuDDlMA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
