@@ -263,28 +263,48 @@ export const generateAudioSummary = async (
 };
 
 export const generateDiagramImage = async (prompt: string, config: DiagramConfig): Promise<string[]> => {
+    // A proporção de tela do config é ignorada pelo gemini-2.5-flash-image, mas é usada para a chave do cache.
     const cachedImages = diagramCache.get(prompt, config.aspectRatio, config.numberOfImages);
     if (cachedImages) {
         console.log("Retornando imagens de diagrama do cache persistente.");
         return cachedImages;
     }
 
-    console.log("Gerando novas imagens de diagrama (não encontradas no cache).");
-    const response = await ai.models.generateImages({
-        model: 'imagen-4.0-generate-001',
-        prompt: prompt,
-        config: {
-          numberOfImages: config.numberOfImages,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: config.aspectRatio,
-        },
-    });
+    console.log(`Gerando ${config.numberOfImages} novas imagens de diagrama com 'gemini-2.5-flash-image' (não encontradas no cache).`);
+    
+    // Cria um array de promessas para gerar imagens em paralelo
+    const imagePromises: Promise<string | null>[] = Array.from({ length: config.numberOfImages }).map(() => (
+        ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [{ text: prompt }],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
+        }).then(response => {
+            // Extrai os dados da imagem em base64 da primeira parte válida
+            for (const part of response.candidates?.[0]?.content?.parts || []) {
+                if (part.inlineData?.data) {
+                    return part.inlineData.data;
+                }
+            }
+            console.warn("Nenhuma imagem encontrada na resposta da IA para um dos pedidos.");
+            return null; // Retorna nulo se nenhuma imagem for encontrada
+        }).catch(err => {
+            console.error("Erro ao gerar uma imagem de diagrama:", err);
+            return null; // Retorna nulo em caso de erro para uma geração de imagem específica
+        })
+    ));
 
-    const images = response.generatedImages?.map(img => img.image.imageBytes).filter((b): b is string => !!b);
+    const imagesBase64 = (await Promise.all(imagePromises)).filter((b): b is string => !!b);
 
-    if (images && images.length > 0) {
-        diagramCache.set(prompt, config.aspectRatio, config.numberOfImages, images);
-        return images;
+    if (imagesBase64.length > 0) {
+        console.log(`Sucesso! ${imagesBase64.length} de ${config.numberOfImages} imagens geradas.`);
+        diagramCache.set(prompt, config.aspectRatio, config.numberOfImages, imagesBase64);
+        return imagesBase64;
     }
-    throw new Error("Não foi possível gerar a imagem do diagrama.");
+
+    // Este erro será lançado se TODAS as promessas de geração de imagem falharem
+    throw new Error("Não foi possível gerar a imagem do diagrama. Todas as tentativas falharam.");
 };

@@ -95,10 +95,6 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [currentPage, setCurrentPage] = useState(0);
     const [isMounted, setIsMounted] = useState(false);
 
-    // State for Diagram Generation
-    const [aspectRatio, setAspectRatio] = useState<DiagramConfig['aspectRatio']>('16:9');
-    const [numberOfImages, setNumberOfImages] = useState(1);
-
     // State for Diagram Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalImageSrc, setModalImageSrc] = useState('');
@@ -178,7 +174,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const handleGenerateDiagramClick = async () => {
         if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading') return;
         setStatusWithTimeout('diagram', 'loading', 0);
-        const imagesBase64 = await onGenerateDiagram({ aspectRatio, numberOfImages });
+        const imagesBase64 = await onGenerateDiagram({ aspectRatio: '16:9', numberOfImages: 2 });
         if (imagesBase64 && imagesBase64.length > 0) {
             setStatusWithTimeout('diagram', 'success', 2000);
         } else {
@@ -396,39 +392,6 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         );
     };
 
-    const DiagramGenerationOptions: React.FC = () => (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
-            <div>
-                <label htmlFor="aspectRatio" className="text-sm font-medium text-slate-700 dark:text-slate-300 mr-2">Proporção:</label>
-                <select 
-                    id="aspectRatio" 
-                    value={aspectRatio} 
-                    onChange={(e) => setAspectRatio(e.target.value as DiagramConfig['aspectRatio'])}
-                    className="px-3 py-1.5 bg-slate-500/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                    <option value="16:9">16:9 (Paisagem)</option>
-                    <option value="9:16">9:16 (Retrato)</option>
-                    <option value="1:1">1:1 (Quadrado)</option>
-                    <option value="4:3">4:3 (Padrão)</option>
-                    <option value="3:4">3:4 (Vertical)</option>
-                </select>
-            </div>
-            <div>
-                <label htmlFor="numberOfImages" className="text-sm font-medium text-slate-700 dark:text-slate-300 mr-2">Imagens:</label>
-                <select 
-                    id="numberOfImages" 
-                    value={numberOfImages} 
-                    onChange={(e) => setNumberOfImages(parseInt(e.target.value, 10))}
-                    className="px-3 py-1.5 bg-slate-500/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
-                >
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                </select>
-            </div>
-        </div>
-    );
-
     return (
         <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
             <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all duration-500 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -528,8 +491,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                         <div className="my-6 p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center no-print border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
                             <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">Visualização da Arquitetura</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Um diagrama visual pode ser gerado por IA para esta seção.</p>
-                             {showGenerateDiagramButton && <DiagramGenerationOptions />}
-                            <Tooltip text="Solicitar à IA que gere e baixe um diagrama visual da arquitetura.">
+                            <Tooltip text="Solicitar à IA que gere 2 diagramas visuais da arquitetura (16:9).">
                                 <button
                                     onClick={handleGenerateDiagramClick}
                                     disabled={downloadStatus.diagram === 'loading' || !showGenerateDiagramButton}

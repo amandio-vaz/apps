@@ -205,7 +205,7 @@ const App: React.FC = () => {
             if (imagesBase64 && imagesBase64.length > 0) {
                  const imgTags = imagesBase64.map((imageBase64, index) => 
                     `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden pdf-no-break">
-                        <img id="aiGeneratedDiagram-${index}" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA #${index + 1}" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" />
+                        <img id="aiGeneratedDiagram-${index}" src="data:image/png;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA #${index + 1}" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" />
                         <figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual #${index + 1} gerado por IA. Clique para ampliar.</figcaption>
                     </figure>`
                 ).join('');
