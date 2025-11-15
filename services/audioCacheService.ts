@@ -67,40 +67,50 @@ class AudioCacheService {
         }
     }
     
-    // A robust LRU (Least Recently Used) cleanup strategy
+    /**
+     * A more robust LRU (Least Recently Used) cleanup strategy.
+     * When quota is exceeded, this function removes a batch of the oldest entries
+     * to free up a significant amount of space at once.
+     */
     private cleanup(): void {
-        console.warn("LocalStorage quota might be exceeded. Cleaning up least recently used audio cache entry.");
+        console.warn("LocalStorage quota might be exceeded. Cleaning up audio cache.");
         try {
+            const cacheItems: { key: string; timestamp: number }[] = [];
             const keys = Object.keys(localStorage).filter(key => key.startsWith(this.prefix));
-
-            if (keys.length < 2) return; // Nothing to clean
-
-            let oldestKey: string | null = null;
-            let oldestTimestamp = Infinity;
 
             for (const key of keys) {
                 const item = localStorage.getItem(key);
                 if (item) {
                     try {
                         const entry: CacheEntry = JSON.parse(item);
-                        if (entry.timestamp < oldestTimestamp) {
-                            oldestTimestamp = entry.timestamp;
-                            oldestKey = key;
-                        }
+                        cacheItems.push({ key, timestamp: entry.timestamp });
                     } catch (e) {
-                        // If parsing fails, it's a corrupted entry, remove it.
+                        // If parsing fails, it's a corrupted entry, remove it immediately.
+                        console.warn(`Removing corrupted cache entry: ${key}`);
                         localStorage.removeItem(key);
                     }
                 }
             }
+            
+            if (cacheItems.length < 2) {
+                console.log("Cache cleanup aborted: Not enough items to clean.");
+                return; 
+            }
 
-            if (oldestKey) {
-                console.log(`Removing oldest cache entry: ${oldestKey}`);
-                localStorage.removeItem(oldestKey);
+            // Sort by timestamp to find the oldest entries
+            cacheItems.sort((a, b) => a.timestamp - b.timestamp);
+
+            // Determine how many items to remove (20% of the cache, or at least one)
+            const itemsToRemoveCount = Math.max(1, Math.floor(cacheItems.length * 0.2));
+            const itemsToRemove = cacheItems.slice(0, itemsToRemoveCount);
+
+            console.log(`Attempting to remove ${itemsToRemove.length} oldest audio cache entries.`);
+            for (const item of itemsToRemove) {
+                localStorage.removeItem(item.key);
             }
 
         } catch (error) {
-            console.error("Failed during cache cleanup:", error);
+            console.error("Failed during audio cache cleanup:", error);
         }
     }
     

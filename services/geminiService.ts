@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { UploadedFile, GeminiAnalysisResponse, DiagramConfig } from '../types';
 import { audioCache } from './audioCacheService';
+import { diagramCache } from './diagramCacheService';
 
 
 if (!process.env.API_KEY) {
@@ -42,7 +43,7 @@ O documento HTML deve ser bem estruturado e visualmente agradável. Use as segui
 *   **Técnico**: Informações validadas e recentes (máximo 6 meses), precisão técnica, exemplos práticos.
 *   **Estético**: Design profissional, diagramas elegantes (use Mermaid), hierarquia visual clara.
 *   **Didático**: Explicações completas, progressão lógica, linguagem técnica acessível.
-*   **Linguístico**: EXCLUSIVAMENTE em português do Brasil (pt-BR), terminologia padronizada, gramática impecável.
+*   **Linguístico**: EXCLUSIVAMENTE em português do Brasil (pt-BR), terminologia padroniizada, gramática impecável.
 
 **REGRAS IMPERATIVAS:**
 1.  **ZERO SUPERFICIALIDADE**: Análises profundas e embasadas.
@@ -156,12 +157,14 @@ function splitTextIntoChunks(text: string, limit: number): string[] {
     if (text.length <= limit) {
         return [text];
     }
+    // Divide o texto em sentenças para tentar manter a coesão.
     const sentences = text.match(/.*?(?:[.!?…](?=\s|$)|\n|$)/g)?.filter(s => s.trim().length > 0) || [text];
     
     const chunks: string[] = [];
     let currentChunk = '';
 
     for (const sentence of sentences) {
+        // Se uma única sentença já ultrapassa o limite, ela será dividida à força.
         if (sentence.length > limit) {
             if (currentChunk) {
                 chunks.push(currentChunk);
@@ -230,7 +233,7 @@ export const generateAudioSummary = async (
     }
 
     console.log("Gerando novo resumo de áudio (não encontrado no cache).");
-    const TTS_CHARACTER_LIMIT = 4000;
+    const TTS_CHARACTER_LIMIT = 4000; // Limite de segurança para caracteres por chamada TTS
 
     if (summaryText.length <= TTS_CHARACTER_LIMIT) {
         const audioBase64 = await _generateSingleAudioChunk(summaryText, voice, narrationStyle);
@@ -238,10 +241,12 @@ export const generateAudioSummary = async (
         return audioBase64;
     }
 
+    // Lógica para textos longos
     console.log(`Texto longo detectado (${summaryText.length} caracteres). Dividindo em partes para geração de áudio.`);
     const textChunks = splitTextIntoChunks(summaryText, TTS_CHARACTER_LIMIT);
     console.log(`Texto dividido em ${textChunks.length} partes.`);
 
+    // Gera o áudio para todas as partes em paralelo para otimizar o tempo
     const audioChunkPromises = textChunks.map(chunk => _generateSingleAudioChunk(chunk, voice, narrationStyle));
     const base64AudioChunks = await Promise.all(audioChunkPromises);
 
@@ -252,11 +257,19 @@ export const generateAudioSummary = async (
     
     console.log("Áudio final concatenado com sucesso.");
     
+    // Salva o áudio completo e concatenado no cache
     audioCache.set(summaryText, voice, narrationStyle, finalAudioBase64);
     return finalAudioBase64;
 };
 
 export const generateDiagramImage = async (prompt: string, config: DiagramConfig): Promise<string[]> => {
+    const cachedImages = diagramCache.get(prompt, config.aspectRatio, config.numberOfImages);
+    if (cachedImages) {
+        console.log("Retornando imagens de diagrama do cache persistente.");
+        return cachedImages;
+    }
+
+    console.log("Gerando novas imagens de diagrama (não encontradas no cache).");
     const response = await ai.models.generateImages({
         model: 'imagen-4.0-generate-001',
         prompt: prompt,
@@ -270,6 +283,7 @@ export const generateDiagramImage = async (prompt: string, config: DiagramConfig
     const images = response.generatedImages?.map(img => img.image.imageBytes).filter((b): b is string => !!b);
 
     if (images && images.length > 0) {
+        diagramCache.set(prompt, config.aspectRatio, config.numberOfImages, images);
         return images;
     }
     throw new Error("Não foi possível gerar a imagem do diagrama.");
