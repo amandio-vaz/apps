@@ -11,6 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYM6ucIFoTjslZ0A2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- Scripts e Estilos para Realce de Sintaxe (highlight.js) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-light.min.css" id="hljs-light-theme" disabled>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/a11y-dark.min.css" id="hljs-dark-theme">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlightjs-line-numbers.js/2.8.0/highlightjs-line-numbers.min.js"></script>
+
     <script>
       tailwind.config = {
         darkMode: 'class',
@@ -73,6 +80,36 @@
       @keyframes spin-slow {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
+      }
+      
+      /* Estilos para numeração de linhas do highlight.js */
+      .hljs-ln {
+        border-collapse: collapse;
+        width: 100%;
+      }
+      .hljs-ln td {
+        padding: 0;
+      }
+      .hljs-ln-numbers {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        text-align: right;
+        color: #9ca3af; /* Tailwind gray-400 */
+        border-right: 1px solid #e5e7eb; /* Tailwind gray-200 */
+        vertical-align: top;
+        padding-right: 0.75rem !important;
+        padding-left: 0.75rem !important;
+      }
+      .dark .hljs-ln-numbers {
+        color: #6b7280; /* Tailwind gray-500 */
+        border-right-color: #374151; /* Tailwind gray-700 */
+      }
+      .hljs-ln-code {
+        padding-left: 0.75rem !important;
       }
     </style>
 <script type="text/javascript">

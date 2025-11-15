@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import type { AnalysisResult, DiagramConfig } from '../types';
 import { Icon } from './Icon';
 import { Tooltip } from './Tooltip';
@@ -9,6 +9,10 @@ declare global {
     interface Window {
         jspdf: any;
         html2canvas: any;
+        hljs: {
+            highlightElement: (element: HTMLElement) => void;
+            lineNumbersBlock: (element: HTMLElement, options?: { startFrom?: number }) => void;
+        };
     }
 }
 
@@ -94,6 +98,9 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [pages, setPages] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
     const [isMounted, setIsMounted] = useState(false);
+    const scrollPositions = useRef<{ html: number, markdown: number }>({ html: 0, markdown: 0 }); // Ref para posições de rolagem
+    const [diagramAspectRatio, setDiagramAspectRatio] = useState<DiagramConfig['aspectRatio']>('16:9');
+
 
     // State for Diagram Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -103,6 +110,24 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [isPanning, setIsPanning] = useState(false);
     const startPanPoint = useRef({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
+
+
+    // --- LOGIC FOR SCROLL POSITION PERSISTENCE ---
+
+    const handleTabChange = (newTab: Tab) => {
+        if (newTab === activeTab) return;
+
+        // Armazena a posição de rolagem atual da aba que está sendo desativada.
+        scrollPositions.current[activeTab] = window.scrollY;
+        setActiveTab(newTab);
+    };
+
+    useLayoutEffect(() => {
+        // Restaura a posição de rolagem para a nova aba ativa.
+        // O uso de useLayoutEffect previne um "salto" visual.
+        const savedPosition = scrollPositions.current[activeTab];
+        window.scrollTo({ top: savedPosition, behavior: 'auto' });
+    }, [activeTab]);
 
 
     const setStatusWithTimeout = useCallback((key: keyof typeof downloadStatus, status: DownloadStatus, timeout = 2000) => {
@@ -119,22 +144,6 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         const timer = setTimeout(() => setIsMounted(true), 50);
         return () => clearTimeout(timer);
     }, []);
-
-    // Automatically generate the diagram if a prompt is available
-    useEffect(() => {
-        if (result.diagramPrompt && result.html.includes('[[DIAGRAM_PLACEHOLDER]]')) {
-            const autoGenerate = async () => {
-                setStatusWithTimeout('diagram', 'loading', 0);
-                const imagesBase64 = await onGenerateDiagram({ aspectRatio: '16:9', numberOfImages: 1 });
-                if (imagesBase64 && imagesBase64.length > 0) {
-                    setStatusWithTimeout('diagram', 'success', 2000);
-                } else {
-                    setStatusWithTimeout('diagram', 'idle', 0);
-                }
-            };
-            autoGenerate();
-        }
-    }, [result.diagramPrompt, result.html, onGenerateDiagram, setStatusWithTimeout]);
 
     useEffect(() => {
         const diagramElement = document.querySelector('img[id^="aiGeneratedDiagram-"]');
@@ -167,6 +176,26 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         }
     }, [result.html, activeTab]);
 
+    // Efeito para aplicar realce de sintaxe e numeração de linhas
+    useEffect(() => {
+        if (activeTab === 'html' && window.hljs) {
+            const timer = setTimeout(() => {
+                try {
+                    const codeBlocks = document.querySelectorAll('#tabpanel-html pre code');
+                    codeBlocks.forEach((block) => {
+                        window.hljs.highlightElement(block as HTMLElement);
+                        window.hljs.lineNumbersBlock(block as HTMLElement);
+                    });
+                } catch (e) {
+                    console.error("Erro ao aplicar realce de sintaxe:", e);
+                }
+            }, 100); // Pequeno atraso para garantir que o DOM seja renderizado
+    
+            return () => clearTimeout(timer);
+        }
+    }, [pages, currentPage, activeTab, result.html]); // Re-executa quando o conteúdo visível muda
+
+
     const showGenerateDiagramButton = result.diagramPrompt && result.html.includes('[[DIAGRAM_PLACEHOLDER]]');
     const showDiagramGenerationUI = showGenerateDiagramButton || downloadStatus.diagram !== 'idle';
 
@@ -174,7 +203,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const handleGenerateDiagramClick = async () => {
         if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading') return;
         setStatusWithTimeout('diagram', 'loading', 0);
-        const imagesBase64 = await onGenerateDiagram({ aspectRatio: '16:9', numberOfImages: 2 });
+        const imagesBase64 = await onGenerateDiagram({ aspectRatio: diagramAspectRatio, numberOfImages: 2 });
         if (imagesBase64 && imagesBase64.length > 0) {
             setStatusWithTimeout('diagram', 'success', 2000);
         } else {
@@ -340,6 +369,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     };
     
     const baseButtonClass = "inline-flex items-center justify-center gap-2 w-full sm:w-auto text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-60";
+    const commonSelectClasses = "w-full px-4 py-2 bg-slate-50/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition appearance-none text-slate-800 dark:text-slate-200";
 
     const TabButton: React.FC<{ tab: Tab; label: string; icon: string; tooltip: string }> = ({ tab, label, icon, tooltip }) => (
         <Tooltip text={tooltip}>
@@ -348,7 +378,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                 role="tab"
                 aria-selected={activeTab === tab}
                 aria-controls={`tabpanel-${tab}`}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => handleTabChange(tab)}
                 className={`relative flex items-center space-x-2 px-4 py-2 text-sm font-medium rounded-t-md transition-all duration-300 transform hover:scale-110 ${
                     activeTab === tab 
                     ? 'text-sky-400' 
@@ -391,6 +421,8 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
             </div>
         );
     };
+
+    const aspectRatios: DiagramConfig['aspectRatio'][] = ['16:9', '1:1', '9:16', '4:3', '3:4'];
 
     return (
         <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
@@ -491,25 +523,46 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                         <div className="my-6 p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center no-print border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
                             <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">Visualização da Arquitetura</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Um diagrama visual pode ser gerado por IA para esta seção.</p>
-                            <Tooltip text="Solicitar à IA que gere 2 diagramas visuais da arquitetura (16:9).">
-                                <button
-                                    onClick={handleGenerateDiagramClick}
-                                    disabled={downloadStatus.diagram === 'loading' || !showGenerateDiagramButton}
-                                    className={`inline-flex items-center justify-center gap-2 w-56 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed
-                                        ${downloadStatus.diagram === 'success' ? 'bg-green-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}
-                                        ${downloadStatus.diagram === 'loading' ? 'bg-slate-500 cursor-wait' : ''}
-                                        ${downloadStatus.diagram === 'idle' && !showGenerateDiagramButton ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}
-                                    `}
-                                >
-                                   <DownloadButtonContent 
-                                        status={downloadStatus.diagram}
-                                        idleIcon="diagram"
-                                        idleText="Gerar Diagrama com IA"
-                                        loadingText="Gerando Diagrama..."
-                                        successText="Diagrama Gerado!"
-                                   />
-                                </button>
-                            </Tooltip>
+                            
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                                <Tooltip text="Selecione a proporção (aspect ratio) para o diagrama.">
+                                    <div className="relative w-full sm:w-auto">
+                                        <select
+                                            id="aspect-ratio"
+                                            value={diagramAspectRatio}
+                                            onChange={(e) => setDiagramAspectRatio(e.target.value as DiagramConfig['aspectRatio'])}
+                                            className={`${commonSelectClasses} h-[42px] pl-3 pr-8`}
+                                            aria-label="Proporção do diagrama"
+                                        >
+                                            {aspectRatios.map(ratio => (
+                                                <option key={ratio} value={ratio}>{ratio}</option>
+                                            ))}
+                                        </select>
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
+                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                        </div>
+                                    </div>
+                                </Tooltip>
+                                <Tooltip text={`Solicitar à IA que gere 2 diagramas visuais da arquitetura (${diagramAspectRatio}).`}>
+                                    <button
+                                        onClick={handleGenerateDiagramClick}
+                                        disabled={downloadStatus.diagram === 'loading' || !showGenerateDiagramButton}
+                                        className={`inline-flex items-center justify-center gap-2 w-full sm:w-56 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed
+                                            ${downloadStatus.diagram === 'success' ? 'bg-green-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}
+                                            ${downloadStatus.diagram === 'loading' ? 'bg-slate-500 cursor-wait' : ''}
+                                            ${downloadStatus.diagram === 'idle' && !showGenerateDiagramButton ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}
+                                        `}
+                                    >
+                                    <DownloadButtonContent 
+                                            status={downloadStatus.diagram}
+                                            idleIcon="diagram"
+                                            idleText="Gerar Diagrama com IA"
+                                            loadingText="Gerando Diagrama..."
+                                            successText="Diagrama Gerado!"
+                                    />
+                                    </button>
+                                </Tooltip>
+                            </div>
                         </div>
                     )}
                     <PaginationControls />

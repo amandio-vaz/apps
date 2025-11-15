@@ -39,16 +39,16 @@ export const OptionsPanel: React.FC<OptionsPanelProps> = ({
                 <div className="space-y-4">
                     <div>
                         <label htmlFor="context" className={commonLabelClasses}>
-                            Contexto/Domínio <span className="text-red-500" aria-hidden="true">*</span>
+                            Contextualização da Ideia Inicial <span className="text-red-500" aria-hidden="true">*</span>
                         </label>
-                        <Tooltip text="Descreva o propósito e o ambiente da arquitetura. Ex: Sistema de e-commerce B2C com foco em alta disponibilidade." className="w-full">
+                        <Tooltip text="Descreva o propósito e o ambiente da arquitetura. Ex: Integração do Veeam Backup com o Cisco Splunk para monitoramento." className="w-full">
                             <input
                                 id="context"
                                 type="text"
                                 value={context}
                                 onChange={(e) => setContext(e.target.value)}
                                 onBlur={validateContextOnBlur}
-                                placeholder="Ex: E-commerce B2C de alta disponibilidade"
+                                placeholder="Ex: Veeam Backup and Replication com o Cisco Splunk"
                                 className={`${commonInputClasses} ${validationErrors.context ? 'border-red-500/50 ring-1 ring-red-500' : 'border-slate-300 dark:border-slate-600'}`}
                                 aria-required="true"
                                 aria-invalid={validationErrors.context ? 'true' : 'false'}
@@ -78,9 +78,9 @@ export const OptionsPanel: React.FC<OptionsPanelProps> = ({
                     </div>
                     <div>
                         <label htmlFor="priorities" className={commonLabelClasses}>
-                            Prioridades <span className="text-red-500" aria-hidden="true">*</span>
+                            Prioridades da nova Arquitetura <span className="text-red-500" aria-hidden="true">*</span>
                         </label>
-                        <Tooltip text="Indique os principais objetivos da otimização. Ex: Redução de custos, aumento de performance, melhoria na segurança." className="w-full">
+                        <Tooltip text="Indique os principais objetivos da otimização para a nova arquitetura. Ex: Redução de custos, aumento de performance, melhoria na segurança." className="w-full">
                             <input
                                 id="priorities"
                                 type="text"
@@ -121,7 +121,7 @@ export const OptionsPanel: React.FC<OptionsPanelProps> = ({
                                     <option value="Kore">Feminina Suave</option>
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-700 dark:text-slate-300">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                                 </div>
                             </div>
                         </Tooltip>
@@ -145,7 +145,7 @@ export const OptionsPanel: React.FC<OptionsPanelProps> = ({
                                     <option>Narrativa Cativante</option>
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-700 dark:text-slate-300">
-                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                                 </div>
                             </div>
                         </Tooltip>

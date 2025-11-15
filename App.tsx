@@ -40,14 +40,21 @@ const App: React.FC = () => {
         const body = document.body;
         body.style.transition = 'background-color 0.3s ease, color 0.3s ease';
 
+        const lightThemeLink = document.getElementById('hljs-light-theme') as HTMLLinkElement | null;
+        const darkThemeLink = document.getElementById('hljs-dark-theme') as HTMLLinkElement | null;
+
         if (theme === 'dark') {
             document.documentElement.classList.add('dark');
             body.classList.add('animated-gradient-bg', 'text-slate-200');
             body.classList.remove('bg-slate-50', 'text-slate-800');
+            if (lightThemeLink) lightThemeLink.disabled = true;
+            if (darkThemeLink) darkThemeLink.disabled = false;
         } else {
             document.documentElement.classList.remove('dark');
             body.classList.remove('animated-gradient-bg', 'text-slate-200');
             body.classList.add('bg-slate-50', 'text-slate-800');
+            if (lightThemeLink) lightThemeLink.disabled = false;
+            if (darkThemeLink) darkThemeLink.disabled = true;
         }
     }, [theme]);
 
@@ -256,7 +263,7 @@ const App: React.FC = () => {
     return (
         <div className="flex flex-col min-h-screen">
             <Header theme={theme} toggleTheme={toggleTheme} isMounted={isMounted} />
-            <main className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-grow">
+            <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-grow">
                 <div className="space-y-12">
                     <div className={`transition-all duration-700 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
