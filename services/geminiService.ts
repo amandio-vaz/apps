@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import type { UploadedFile, GeminiAnalysisResponse } from '../types';
+import type { UploadedFile, GeminiAnalysisResponse, DiagramConfig } from '../types';
 import { audioCache } from './audioCacheService';
 
 
@@ -120,19 +120,74 @@ export const analyzeArchitecture = async (
     }
 };
 
-export const generateAudioSummary = async (
-    summaryText: string,
+// --- Funções Auxiliares para Geração de Áudio ---
+
+function decodeBase64(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function concatenateUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+    const totalLength = arrays.reduce((acc, value) => acc + value.length, 0);
+    const result = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const arr of arrays) {
+        result.set(arr, offset);
+        offset += arr.length;
+    }
+    return result;
+}
+
+function splitTextIntoChunks(text: string, limit: number): string[] {
+    if (text.length <= limit) {
+        return [text];
+    }
+    const sentences = text.match(/.*?(?:[.!?…](?=\s|$)|\n|$)/g)?.filter(s => s.trim().length > 0) || [text];
+    
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    for (const sentence of sentences) {
+        if (sentence.length > limit) {
+            if (currentChunk) {
+                chunks.push(currentChunk);
+                currentChunk = '';
+            }
+            for (let i = 0; i < sentence.length; i += limit) {
+                chunks.push(sentence.substring(i, i + limit));
+            }
+        } else if ((currentChunk + sentence).length > limit) {
+            chunks.push(currentChunk);
+            currentChunk = sentence;
+        } else {
+            currentChunk += sentence;
+        }
+    }
+    if (currentChunk) {
+        chunks.push(currentChunk);
+    }
+    return chunks.map(c => c.trim()).filter(c => c.length > 0);
+}
+
+const _generateSingleAudioChunk = async (
+    textChunk: string,
     voice: string,
     narrationStyle: string
 ): Promise<string> => {
-    const cachedAudio = audioCache.get(summaryText, voice, narrationStyle);
-    if (cachedAudio) {
-        console.log("Retornando resumo de áudio do cache persistente.");
-        return cachedAudio;
-    }
-
-    console.log("Gerando novo resumo de áudio (não encontrado no cache).");
-
     const styleInstructions: { [key: string]: string } = {
         'Profissional e Claro': 'de forma clara, profissional e com uma voz natural',
         'Entusiasmado e Dinâmico': 'com entusiasmo, de forma dinâmica e com uma voz energética',
@@ -140,9 +195,8 @@ export const generateAudioSummary = async (
         'Formal e Conciso': 'de forma formal, concisa e com uma voz direta',
         'Narrativa Cativante': 'como se estivesse contando uma história cativante, com uma voz envolvente e expressiva',
     };
-
     const instruction = styleInstructions[narrationStyle] || styleInstructions['Profissional e Claro'];
-    const prompt = `Leia o seguinte resumo ${instruction}: "${summaryText}"`;
+    const prompt = `Leia o seguinte texto ${instruction}: "${textChunk}"`;
     
     const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -159,28 +213,64 @@ export const generateAudioSummary = async (
 
     const audioPart = response.candidates?.[0]?.content?.parts?.[0];
     if (audioPart && audioPart.inlineData) {
-        const audioBase64 = audioPart.inlineData.data;
-        audioCache.set(summaryText, voice, narrationStyle, audioBase64); // Armazena o resultado no cache persistente
-        return audioBase64;
+        return audioPart.inlineData.data;
     }
-    throw new Error("Não foi possível gerar o áudio.");
+    throw new Error(`Não foi possível gerar o áudio para o trecho: "${textChunk.substring(0, 50)}..."`);
 };
 
+export const generateAudioSummary = async (
+    summaryText: string,
+    voice: string,
+    narrationStyle: string
+): Promise<string> => {
+    const cachedAudio = audioCache.get(summaryText, voice, narrationStyle);
+    if (cachedAudio) {
+        console.log("Retornando resumo de áudio do cache persistente.");
+        return cachedAudio;
+    }
 
-export const generateDiagramImage = async (prompt: string): Promise<string> => {
+    console.log("Gerando novo resumo de áudio (não encontrado no cache).");
+    const TTS_CHARACTER_LIMIT = 4000;
+
+    if (summaryText.length <= TTS_CHARACTER_LIMIT) {
+        const audioBase64 = await _generateSingleAudioChunk(summaryText, voice, narrationStyle);
+        audioCache.set(summaryText, voice, narrationStyle, audioBase64);
+        return audioBase64;
+    }
+
+    console.log(`Texto longo detectado (${summaryText.length} caracteres). Dividindo em partes para geração de áudio.`);
+    const textChunks = splitTextIntoChunks(summaryText, TTS_CHARACTER_LIMIT);
+    console.log(`Texto dividido em ${textChunks.length} partes.`);
+
+    const audioChunkPromises = textChunks.map(chunk => _generateSingleAudioChunk(chunk, voice, narrationStyle));
+    const base64AudioChunks = await Promise.all(audioChunkPromises);
+
+    console.log("Concatenando partes de áudio...");
+    const decodedAudioChunks = base64AudioChunks.map(decodeBase64);
+    const concatenatedAudioData = concatenateUint8Arrays(decodedAudioChunks);
+    const finalAudioBase64 = encodeBase64(concatenatedAudioData);
+    
+    console.log("Áudio final concatenado com sucesso.");
+    
+    audioCache.set(summaryText, voice, narrationStyle, finalAudioBase64);
+    return finalAudioBase64;
+};
+
+export const generateDiagramImage = async (prompt: string, config: DiagramConfig): Promise<string[]> => {
     const response = await ai.models.generateImages({
         model: 'imagen-4.0-generate-001',
         prompt: prompt,
         config: {
-          numberOfImages: 1,
+          numberOfImages: config.numberOfImages,
           outputMimeType: 'image/jpeg',
-          aspectRatio: '16:9',
+          aspectRatio: config.aspectRatio,
         },
     });
 
-    const image = response.generatedImages?.[0]?.image?.imageBytes;
-    if (image) {
-        return image;
+    const images = response.generatedImages?.map(img => img.image.imageBytes).filter((b): b is string => !!b);
+
+    if (images && images.length > 0) {
+        return images;
     }
     throw new Error("Não foi possível gerar a imagem do diagrama.");
 };

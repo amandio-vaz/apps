@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { AnalysisResult } from '../types';
+import type { AnalysisResult, DiagramConfig } from '../types';
 import { Icon } from './Icon';
 import { Tooltip } from './Tooltip';
 
@@ -33,7 +33,7 @@ const loadScript = (src: string): Promise<void> => {
 
 interface ResultsDisplayProps {
     result: AnalysisResult;
-    onGenerateDiagram: () => Promise<string | null>;
+    onGenerateDiagram: (config: DiagramConfig) => Promise<string[] | null>;
 }
 
 type Tab = 'html' | 'markdown';
@@ -95,6 +95,10 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [currentPage, setCurrentPage] = useState(0);
     const [isMounted, setIsMounted] = useState(false);
 
+    // State for Diagram Generation
+    const [aspectRatio, setAspectRatio] = useState<DiagramConfig['aspectRatio']>('16:9');
+    const [numberOfImages, setNumberOfImages] = useState(1);
+
     // State for Diagram Modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalImageSrc, setModalImageSrc] = useState('');
@@ -125,8 +129,8 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         if (result.diagramPrompt && result.html.includes('[[DIAGRAM_PLACEHOLDER]]')) {
             const autoGenerate = async () => {
                 setStatusWithTimeout('diagram', 'loading', 0);
-                const imageBase64 = await onGenerateDiagram();
-                if (imageBase64) {
+                const imagesBase64 = await onGenerateDiagram({ aspectRatio: '16:9', numberOfImages: 1 });
+                if (imagesBase64 && imagesBase64.length > 0) {
                     setStatusWithTimeout('diagram', 'success', 2000);
                 } else {
                     setStatusWithTimeout('diagram', 'idle', 0);
@@ -134,10 +138,10 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
             };
             autoGenerate();
         }
-    }, [result.diagramPrompt, onGenerateDiagram, setStatusWithTimeout, result.html]);
+    }, [result.diagramPrompt, result.html, onGenerateDiagram, setStatusWithTimeout]);
 
     useEffect(() => {
-        const diagramElement = document.getElementById('aiGeneratedDiagram');
+        const diagramElement = document.querySelector('img[id^="aiGeneratedDiagram-"]');
         setIsDiagramVisible(!!diagramElement);
     }, [result.html]);
 
@@ -174,22 +178,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const handleGenerateDiagramClick = async () => {
         if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading') return;
         setStatusWithTimeout('diagram', 'loading', 0);
-        const imageBase64 = await onGenerateDiagram();
-        if (imageBase64) {
-            triggerPngDownload(imageBase64, 'diagrama-arquitetura-ia.png');
+        const imagesBase64 = await onGenerateDiagram({ aspectRatio, numberOfImages });
+        if (imagesBase64 && imagesBase64.length > 0) {
             setStatusWithTimeout('diagram', 'success', 2000);
         } else {
             setStatusWithTimeout('diagram', 'idle', 0);
         }
-    };
-
-    const triggerPngDownload = (base64Data: string, filename: string) => {
-        const link = document.createElement('a');
-        link.href = `data:image/jpeg;base64,${base64Data}`;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
     const handleDownloadPdf = async () => {
@@ -283,15 +277,20 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     };
     
     const handleDownloadDiagram = () => {
-        const imgElement = document.getElementById('aiGeneratedDiagram') as HTMLImageElement;
-        if (!imgElement) return;
+        const imgElements = document.querySelectorAll<HTMLImageElement>('img[id^="aiGeneratedDiagram-"]');
+        if (!imgElements || imgElements.length === 0) return;
+
         setStatusWithTimeout('diagram', 'loading');
-        const link = document.createElement('a');
-        link.href = imgElement.src;
-        link.setAttribute('download', 'diagrama-arquitetura.png');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        
+        imgElements.forEach((imgElement, index) => {
+            const link = document.createElement('a');
+            link.href = imgElement.src;
+            link.setAttribute('download', `diagrama-arquitetura-${index + 1}.png`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
         setStatusWithTimeout('diagram', 'success');
     };
 
@@ -339,7 +338,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     // Event delegation for opening the modal
     const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement;
-        if (target.id === 'aiGeneratedDiagram' && target.tagName === 'IMG') {
+        if (target.id.startsWith('aiGeneratedDiagram-') && target.tagName === 'IMG') {
             openModal(target.getAttribute('src') || '');
         }
     };
@@ -396,6 +395,39 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
             </div>
         );
     };
+
+    const DiagramGenerationOptions: React.FC = () => (
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
+            <div>
+                <label htmlFor="aspectRatio" className="text-sm font-medium text-slate-700 dark:text-slate-300 mr-2">Proporção:</label>
+                <select 
+                    id="aspectRatio" 
+                    value={aspectRatio} 
+                    onChange={(e) => setAspectRatio(e.target.value as DiagramConfig['aspectRatio'])}
+                    className="px-3 py-1.5 bg-slate-500/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                    <option value="16:9">16:9 (Paisagem)</option>
+                    <option value="9:16">9:16 (Retrato)</option>
+                    <option value="1:1">1:1 (Quadrado)</option>
+                    <option value="4:3">4:3 (Padrão)</option>
+                    <option value="3:4">3:4 (Vertical)</option>
+                </select>
+            </div>
+            <div>
+                <label htmlFor="numberOfImages" className="text-sm font-medium text-slate-700 dark:text-slate-300 mr-2">Imagens:</label>
+                <select 
+                    id="numberOfImages" 
+                    value={numberOfImages} 
+                    onChange={(e) => setNumberOfImages(parseInt(e.target.value, 10))}
+                    className="px-3 py-1.5 bg-slate-500/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                </select>
+            </div>
+        </div>
+    );
 
     return (
         <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
@@ -496,6 +528,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                         <div className="my-6 p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center no-print border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
                             <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">Visualização da Arquitetura</h3>
                             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Um diagrama visual pode ser gerado por IA para esta seção.</p>
+                             {showGenerateDiagramButton && <DiagramGenerationOptions />}
                             <Tooltip text="Solicitar à IA que gere e baixe um diagrama visual da arquitetura.">
                                 <button
                                     onClick={handleGenerateDiagramClick}

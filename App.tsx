@@ -9,7 +9,7 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { Tooltip } from './components/Tooltip';
 import { analyzeArchitecture, generateAudioSummary, generateDiagramImage } from './services/geminiService';
 import { getHistory, addHistoryEntry, clearHistory } from './services/historyService';
-import type { AnalysisResult, HistoryEntry } from './types';
+import type { AnalysisResult, HistoryEntry, DiagramConfig } from './types';
 
 const App: React.FC = () => {
     const [files, setFiles] = useState<File[]>([]);
@@ -194,26 +194,31 @@ const App: React.FC = () => {
         }
     }, [files, context, constraints, priorities, voice, narrationStyle]);
 
-    const handleGenerateDiagram = useCallback(async (): Promise<string | null> => {
+    const handleGenerateDiagram = useCallback(async (config: DiagramConfig): Promise<string[] | null> => {
         if (!analysisResult?.diagramPrompt) return null;
     
         setError(null);
     
         try {
-            const imageBase64 = await generateDiagramImage(analysisResult.diagramPrompt);
+            const imagesBase64 = await generateDiagramImage(analysisResult.diagramPrompt, config);
             
-            if (imageBase64) {
-                const imgTag = `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"><img id="aiGeneratedDiagram" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" /><figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual gerado por IA. Clique para ampliar.</figcaption></figure>`;
+            if (imagesBase64 && imagesBase64.length > 0) {
+                 const imgTags = imagesBase64.map((imageBase64, index) => 
+                    `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden pdf-no-break">
+                        <img id="aiGeneratedDiagram-${index}" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA #${index + 1}" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" />
+                        <figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual #${index + 1} gerado por IA. Clique para ampliar.</figcaption>
+                    </figure>`
+                ).join('');
                 
                 setAnalysisResult(prevResult => {
                     if (!prevResult) return null;
                     return {
                         ...prevResult,
-                        html: prevResult.html.replace('[[DIAGRAM_PLACEHOLDER]]', imgTag),
+                        html: prevResult.html.replace('[[DIAGRAM_PLACEHOLDER]]', imgTags),
                         diagramPrompt: null, 
                     };
                 });
-                return imageBase64;
+                return imagesBase64;
             } else {
                 setError(new Error('A geração da imagem não retornou dados.'));
                 return null;
