@@ -5,13 +5,14 @@ import { Tooltip } from './Tooltip';
 interface HeaderProps {
     theme: 'light' | 'dark';
     toggleTheme: () => void;
+    isMounted: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme }) => {
+export const Header: React.FC<HeaderProps> = ({ theme, toggleTheme, isMounted }) => {
     return (
         <header className="bg-white/10 dark:bg-slate-900/60 backdrop-blur-sm sticky top-0 z-40 border-b border-slate-200/20 dark:border-slate-700/50 shadow-lg">
-            <div className="container mx-auto px-4 h-16 flex items-center justify-center relative">
-                <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-wider">
+            <div className="container mx-auto px-4 h-20 flex items-center justify-center relative">
+                <h1 className={`text-3xl sm:text-4xl font-bold text-slate-800 dark:bg-gradient-to-br dark:from-slate-400 dark:to-indigo-500 dark:bg-clip-text dark:text-transparent tracking-wider transition-all duration-700 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                     StackArch Cortex Platform
                 </h1>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2">

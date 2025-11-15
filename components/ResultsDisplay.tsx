@@ -1,19 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { AnalysisResult } from '../types';
 import { Icon } from './Icon';
 import { Tooltip } from './Tooltip';
 
-// Fix: Add type declarations for jspdf and html2canvas on the global window object.
-// These libraries are likely loaded via script tags and are not imported,
-// so TypeScript needs to be informed of their existence to avoid compilation errors.
+// Fix: Add type declarations for jspdf and html2canvas to the global window object.
+// These libraries are loaded dynamically, so TypeScript needs to be aware of them.
 declare global {
     interface Window {
-        jspdf: {
-            jsPDF: any; // Using 'any' for simplicity as the full type is complex
-        };
-        html2canvas: (element: HTMLElement, options?: any) => Promise<HTMLCanvasElement>;
+        jspdf: any;
+        html2canvas: any;
     }
 }
+
+const loadedScripts = new Map<string, Promise<void>>();
+
+const loadScript = (src: string): Promise<void> => {
+    if (loadedScripts.has(src)) {
+        return loadedScripts.get(src)!;
+    }
+    const promise = new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.async = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+        document.body.appendChild(script);
+    });
+    loadedScripts.set(src, promise);
+    return promise;
+};
+
 
 interface ResultsDisplayProps {
     result: AnalysisResult;
@@ -79,6 +95,16 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [currentPage, setCurrentPage] = useState(0);
     const [isMounted, setIsMounted] = useState(false);
 
+    // State for Diagram Modal
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalImageSrc, setModalImageSrc] = useState('');
+    const [zoom, setZoom] = useState(1);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const [isPanning, setIsPanning] = useState(false);
+    const startPanPoint = useRef({ x: 0, y: 0 });
+    const imageRef = useRef<HTMLImageElement>(null);
+
+
     const setStatusWithTimeout = useCallback((key: keyof typeof downloadStatus, status: DownloadStatus, timeout = 2000) => {
         setDownloadStatus(s => ({ ...s, [key]: status }));
         if (status === 'success') {
@@ -118,18 +144,28 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     // Effect for pagination logic
     useEffect(() => {
         if (activeTab === 'html' && result.html) {
-            // Split by H1 or H2 tags, keeping the tags with the content that follows them
-            const contentPages = result.html.split(/(?=<h[1-2][^>]*>)/).filter(page => page.trim() !== '');
-            if (contentPages.length > 1) {
-                setPages(contentPages);
-            } else {
-                // Fallback for content without H1/H2 tags or very short content
-                setPages([result.html]);
-            }
+            const rawPages = result.html.split(/(?=<h[1-2][^>]*>)/).filter(page => page.trim() !== '');
+            const mergedPages: string[] = [];
+            let pageBuffer = '';
+    
+            rawPages.forEach((page, index) => {
+                pageBuffer += page;
+                const hasContentAfterHeading = /<\/h[1-2]>\s*<[a-z]/i.test(page);
+    
+                if (hasContentAfterHeading || index === rawPages.length - 1) {
+                    if (pageBuffer.trim()) {
+                        mergedPages.push(pageBuffer);
+                    }
+                    pageBuffer = '';
+                }
+            });
+    
+            if (pageBuffer.trim()) mergedPages.push(pageBuffer);
+    
+            setPages(mergedPages.length > 0 ? mergedPages : (result.html ? [result.html] : []));
             setCurrentPage(0);
         }
     }, [result.html, activeTab]);
-
 
     const showGenerateDiagramButton = result.diagramPrompt && result.html.includes('[[DIAGRAM_PLACEHOLDER]]');
     const showDiagramGenerationUI = showGenerateDiagramButton || downloadStatus.diagram !== 'idle';
@@ -137,15 +173,12 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
 
     const handleGenerateDiagramClick = async () => {
         if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading') return;
-
         setStatusWithTimeout('diagram', 'loading', 0);
         const imageBase64 = await onGenerateDiagram();
-        
         if (imageBase64) {
             triggerPngDownload(imageBase64, 'diagrama-arquitetura-ia.png');
             setStatusWithTimeout('diagram', 'success', 2000);
         } else {
-            // Error case is handled in App.tsx, just reset the button state
             setStatusWithTimeout('diagram', 'idle', 0);
         }
     };
@@ -160,65 +193,64 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     };
 
     const handleDownloadPdf = async () => {
-        const { jsPDF } = window.jspdf;
-        
-        if (!result.html) {
-            alert("Não há conteúdo HTML para gerar o PDF.");
-            return;
-        }
-
-        setStatusWithTimeout('pdf', 'loading');
-
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.left = '-9999px';
-        container.style.width = '515pt';
-        const contentWrapper = document.createElement('div');
-        contentWrapper.className = 'prose prose-slate max-w-none';
-        contentWrapper.innerHTML = result.html;
-        container.appendChild(contentWrapper);
-        document.body.appendChild(container);
-
+        setStatusWithTimeout('pdf', 'loading', 0);
         try {
+            await Promise.all([
+                loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
+                loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js")
+            ]);
+
+            if (!window.jspdf || !window.jspdf.jsPDF || !window.html2canvas) {
+                throw new Error("PDF generation libraries not loaded correctly.");
+            }
+            
+            const { jsPDF } = window.jspdf;
+            const style = document.createElement('style');
+            style.id = 'pdf-print-styles';
+            // Refined CSS page-break logic
+            style.innerHTML = `
+                .pdf-export-container h1, .pdf-export-container h2 { page-break-before: always; }
+                .pdf-export-container h1 + h2 { page-break-before: auto; } /* Don't break between h1 and immediate h2 */
+                .pdf-export-container > .prose > h1:first-child, .pdf-export-container > .prose > h2:first-child { page-break-before: auto; }
+                .pdf-export-container h1, .pdf-export-container h2, .pdf-export-container h3, .pdf-export-container h4, .pdf-export-container figure, .pdf-export-container table, .pdf-export-container pre, .pdf-export-container blockquote, .pdf-export-container .pdf-no-break, .pdf-export-container ul, .pdf-export-container ol { page-break-inside: avoid; }
+            `;
+            document.head.appendChild(style);
+
+            const container = document.createElement('div');
+            container.className = 'pdf-export-container';
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.style.width = '515pt';
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'prose prose-slate max-w-none';
+            contentWrapper.innerHTML = result.html;
+            container.appendChild(contentWrapper);
+            document.body.appendChild(container);
+
             document.body.classList.add('pdf-rendering');
-            const pdf = new jsPDF({
-                orientation: 'p',
-                unit: 'pt',
-                format: 'a4',
-            });
+            const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
             await pdf.html(contentWrapper, {
                 margin: [40, 40, 40, 40],
                 autoPaging: 'slice',
-                html2canvas: {
-                    scale: 0.7,
-                    useCORS: true,
-                    backgroundColor: '#ffffff',
-                    onclone: (clonedDoc: Document) => {
-                        clonedDoc.documentElement.classList.remove('dark');
-                    }
-                },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', onclone: (doc: Document) => doc.documentElement.classList.remove('dark') },
                 width: 515,
                 windowWidth: 1024,
             });
             pdf.save('analise-arquitetura-ia.pdf');
             setStatusWithTimeout('pdf', 'success');
 
+            document.body.removeChild(container);
+            document.body.classList.remove('pdf-rendering');
+            style.remove();
+
         } catch (error) {
             console.error("Erro ao gerar PDF:", error);
             alert("Ocorreu um erro ao gerar o PDF. Verifique o console para mais detalhes.");
             setStatusWithTimeout('pdf', 'idle', 0);
-        } finally {
-            document.body.removeChild(container);
-            document.body.classList.remove('pdf-rendering');
         }
     };
 
     const handleDownloadMarkdown = () => {
-        if (!result.markdown) {
-            alert("Conteúdo Markdown não disponível para download.");
-            return;
-        }
-
         setStatusWithTimeout('markdown', 'loading');
         const blob = new Blob([result.markdown], { type: 'text/markdown;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -233,19 +265,11 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     };
 
     const handleDownloadAudio = () => {
-        if (!result.audioBase64) {
-            alert("Resumo em áudio não disponível para download.");
-            return;
-        }
-
+        if (!result.audioBase64) return;
         setStatusWithTimeout('audio', 'loading');
         const binaryString = window.atob(result.audioBase64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
         const blob = new Blob([bytes], { type: 'audio/mpeg' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -253,7 +277,6 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         link.setAttribute('download', 'resumo-arquitetura.mp3');
         document.body.appendChild(link);
         link.click();
-        
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
         setStatusWithTimeout('audio', 'success');
@@ -261,36 +284,64 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     
     const handleDownloadDiagram = () => {
         const imgElement = document.getElementById('aiGeneratedDiagram') as HTMLImageElement;
-        if (!imgElement) {
-            alert("Diagrama não encontrado para download.");
-            return;
-        }
-
+        if (!imgElement) return;
         setStatusWithTimeout('diagram', 'loading');
         const link = document.createElement('a');
         link.href = imgElement.src;
         link.setAttribute('download', 'diagrama-arquitetura.png');
         document.body.appendChild(link);
         link.click();
-        
         document.body.removeChild(link);
         setStatusWithTimeout('diagram', 'success');
     };
 
     const handleCopyMarkdown = () => {
-        if (!result.markdown) return;
         navigator.clipboard.writeText(result.markdown).then(() => {
             setIsCopied(true);
-            setCopyStatusMessage('Conteúdo copiado para a área de transferência!');
-            setTimeout(() => {
-                setIsCopied(false);
-                setCopyStatusMessage('');
-            }, 2000);
+            setCopyStatusMessage('Conteúdo copiado!');
+            setTimeout(() => { setIsCopied(false); setCopyStatusMessage(''); }, 2000);
         }).catch(err => {
-            console.error('Falha ao copiar o texto: ', err);
-            setCopyStatusMessage('Falha ao copiar o texto.');
+            console.error('Falha ao copiar:', err);
+            setCopyStatusMessage('Falha ao copiar.');
             setTimeout(() => setCopyStatusMessage(''), 2000);
         });
+    };
+
+    // Diagram Modal Handlers
+    const openModal = (src: string) => {
+        setModalImageSrc(src);
+        setIsModalOpen(true);
+        setZoom(1);
+        setPan({ x: 0, y: 0 });
+    };
+    const closeModal = () => setIsModalOpen(false);
+    const handleWheel = (e: React.WheelEvent) => {
+        e.preventDefault();
+        const zoomFactor = 1.1;
+        const newZoom = e.deltaY > 0 ? zoom / zoomFactor : zoom * zoomFactor;
+        setZoom(Math.max(0.5, Math.min(newZoom, 5)));
+    };
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsPanning(true);
+        startPanPoint.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+    };
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!isPanning) return;
+        e.preventDefault();
+        setPan({
+            x: e.clientX - startPanPoint.current.x,
+            y: e.clientY - startPanPoint.current.y,
+        });
+    };
+    const handleMouseUp = () => setIsPanning(false);
+
+    // Event delegation for opening the modal
+    const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const target = e.target as HTMLElement;
+        if (target.id === 'aiGeneratedDiagram' && target.tagName === 'IMG') {
+            openModal(target.getAttribute('src') || '');
+        }
     };
     
     const baseButtonClass = "inline-flex items-center justify-center gap-2 w-full sm:w-auto text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-60";
@@ -428,18 +479,18 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                 </nav>
             </div>
 
-            {/* Live region for screen reader announcements */}
             <div role="status" aria-live="polite" className="sr-only">
               {copyStatusMessage}
             </div>
 
-            <div className={`prose prose-slate dark:prose-invert max-w-none prose-p:text-slate-300 prose-headings:text-white prose-strong:text-white transition-opacity duration-700 ease-out delay-300 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`prose prose-slate dark:prose-invert max-w-none prose-p:text-slate-600 dark:prose-p:text-slate-300 prose-headings:text-slate-900 dark:prose-headings:text-white prose-strong:text-slate-900 dark:prose-strong:text-white transition-opacity duration-700 ease-out delay-300 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
                 <div 
                     id="tabpanel-html"
                     role="tabpanel"
                     tabIndex={0}
                     aria-labelledby="tab-html"
                     hidden={activeTab !== 'html'}
+                    onClick={handleContentClick}
                 >
                      {showDiagramGenerationUI && (
                         <div className="my-6 p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center no-print border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
@@ -482,6 +533,40 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                     </pre>
                 </div>
             </div>
+
+            {isModalOpen && (
+                <div 
+                    className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+                    onClick={closeModal}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                >
+                    <Tooltip text="Fechar">
+                        <button onClick={closeModal} className="absolute top-4 right-4 text-white p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
+                            <Icon name="close" className="w-8 h-8"/>
+                        </button>
+                    </Tooltip>
+                    <div 
+                        className="relative max-w-[90vw] max-h-[90vh] overflow-hidden cursor-grab"
+                        onWheel={handleWheel}
+                        onMouseDown={handleMouseDown}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <img 
+                            ref={imageRef}
+                            src={modalImageSrc} 
+                            alt="Diagrama de arquitetura ampliado" 
+                            className="transition-transform duration-200 ease-out"
+                            style={{
+                                transform: `scale(${zoom}) translate(${pan.x}px, ${pan.y}px)`,
+                                maxWidth: '100%',
+                                maxHeight: '100%',
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

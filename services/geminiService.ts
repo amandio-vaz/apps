@@ -1,17 +1,27 @@
-
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { UploadedFile, GeminiAnalysisResponse } from '../types';
+import { audioCache } from './audioCacheService';
+
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
 }
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+
 const mainPrompt = `
 Você é um sistema de IA especialista em análise e otimização de arquiteturas tecnológicas. Sua tarefa é realizar uma análise comparativa detalhada com base nos documentos fornecidos e gerar uma documentação profissional aprimorada. Você DEVE seguir rigorosamente a estrutura e os requisitos de qualidade abaixo. A resposta deve ser EXCLUSIVAMENTE em português do Brasil (pt-BR).
 
-**ESTRUTURA DO DOCUMENTO FINAL (GERAR EM HTML e MARKDOWN):**
+**ESTRUTURA E ESTILO DO DOCUMENTO FINAL (GERAR EM HTML e MARKDOWN):**
+
+O documento HTML deve ser bem estruturado e visualmente agradável. Use as seguintes classes de Tailwind CSS para formatar as seções principais como "cards" distintos para melhorar a legibilidade:
+
+-   Para cada seção principal (Resumo, Análise Original, Arquiteturas Propostas, etc.), use um wrapper: \`<div class="p-6 bg-slate-100/50 dark:bg-slate-800/50 rounded-2xl mb-8 border border-slate-200/50 dark:border-slate-700/50 shadow-md pdf-no-break">\`.
+-   Use títulos \`<h2>\` e \`<h3>\` de forma consistente para a hierarquia.
+-   Tabelas devem ter a classe \`w-full text-left border-collapse\`. Use \`<th class="p-2 border-b-2 border-slate-300 dark:border-slate-600 bg-slate-200/50 dark:bg-slate-700/50 font-semibold">\` e \`<td class="p-2 border-b border-slate-200 dark:border-slate-700">\`.
+-   Blocos de código (especialmente para Mermaid) devem estar em \`<pre class="bg-slate-900 text-white p-4 rounded-md overflow-x-auto"><code>...\</code></pre>\`.
+
+**CONTEÚDO DAS SEÇÕES:**
 
 1.  **RESUMO EXECUTIVO**: Visão geral da análise, principais descobertas, recomendação principal.
 2.  **ANÁLISE DA ARQUITETURA ORIGINAL**: Descrição detalhada, stack de tecnologia, diagrama/fluxograma (se possível extrair), Pontos Fortes (✅), Limitações e Desvantagens (⚠️).
@@ -115,6 +125,14 @@ export const generateAudioSummary = async (
     voice: string,
     narrationStyle: string
 ): Promise<string> => {
+    const cachedAudio = audioCache.get(summaryText, voice, narrationStyle);
+    if (cachedAudio) {
+        console.log("Retornando resumo de áudio do cache persistente.");
+        return cachedAudio;
+    }
+
+    console.log("Gerando novo resumo de áudio (não encontrado no cache).");
+
     const styleInstructions: { [key: string]: string } = {
         'Profissional e Claro': 'de forma clara, profissional e com uma voz natural',
         'Entusiasmado e Dinâmico': 'com entusiasmo, de forma dinâmica e com uma voz energética',
@@ -141,7 +159,9 @@ export const generateAudioSummary = async (
 
     const audioPart = response.candidates?.[0]?.content?.parts?.[0];
     if (audioPart && audioPart.inlineData) {
-        return audioPart.inlineData.data;
+        const audioBase64 = audioPart.inlineData.data;
+        audioCache.set(summaryText, voice, narrationStyle, audioBase64); // Armazena o resultado no cache persistente
+        return audioBase64;
     }
     throw new Error("Não foi possível gerar o áudio.");
 };

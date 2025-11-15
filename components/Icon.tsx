@@ -87,6 +87,22 @@ export const Icon: React.FC<IconProps> = ({ name, className, ...props }) => {
                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
             </svg>
         ),
+        audioWave: (
+            <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+              <rect x="3" y="6" width="4" height="12" rx="1">
+                <animate attributeName="height" values="12;20;12" begin="0s" dur="1.2s" repeatCount="indefinite" />
+                <animate attributeName="y" values="6;2;6" begin="0s" dur="1.2s" repeatCount="indefinite" />
+              </rect>
+              <rect x="10" y="6" width="4" height="12" rx="1">
+                <animate attributeName="height" values="12;20;12" begin="0.2s" dur="1.2s" repeatCount="indefinite" />
+                <animate attributeName="y" values="6;2;6" begin="0.2s" dur="1.2s" repeatCount="indefinite" />
+              </rect>
+              <rect x="17" y="6" width="4" height="12" rx="1">
+                <animate attributeName="height" values="12;20;12" begin="0.4s" dur="1.2s" repeatCount="indefinite" />
+                <animate attributeName="y" values="6;2;6" begin="0.4s" dur="1.2s" repeatCount="indefinite" />
+              </rect>
+            </svg>
+        ),
     };
 
     return <div className={className}>{icons[name]}</div>;

@@ -18,6 +18,7 @@ const App: React.FC = () => {
     const [priorities, setPriorities] = useState<string>('Performance e Custo');
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [loadingMessage, setLoadingMessage] = useState<string>('');
+    const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
     const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
     const [error, setError] = useState<Error | string | null>(null);
     const [validationErrors, setValidationErrors] = useState<{ [key: string]: boolean }>({});
@@ -26,14 +27,17 @@ const App: React.FC = () => {
     const [narrationStyle, setNarrationStyle] = useState<string>('Profissional e Claro');
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const resultsRef = useRef<HTMLDivElement>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
     useEffect(() => {
         setHistory(getHistory());
+        // Delay mounting to allow CSS transitions to apply
+        const timer = setTimeout(() => setIsMounted(true), 100);
+        return () => clearTimeout(timer);
     }, []);
 
     useEffect(() => {
         const body = document.body;
-        // Definindo uma transição para suavizar a mudança de cores
         body.style.transition = 'background-color 0.3s ease, color 0.3s ease';
 
         if (theme === 'dark') {
@@ -139,7 +143,9 @@ const App: React.FC = () => {
             
             if (analysisData.audioSummary) {
                 setLoadingMessage('Gerando resumo em áudio com TTS premium...');
+                setIsGeneratingAudio(true);
                 audioBase64 = await generateAudioSummary(analysisData.audioSummary, voice, narrationStyle);
+                setIsGeneratingAudio(false);
             }
 
             const audioPlayerTag = audioBase64
@@ -151,9 +157,16 @@ const App: React.FC = () => {
                                Seu navegador não suporta o elemento de áudio.
                            </audio>
                        </div>
-                       <div class="print-only">
-                           <h3>Resumo Executivo em Áudio</h3>
-                           <p>O resumo executivo em áudio está disponível na versão interativa online desta documentação.</p>
+                       <div class="print-only" style="padding:1rem; border:1px solid #e2e8f0; border-radius: 0.5rem; background-color: #f8fafc;">
+                           <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem;">Resumo Executivo em Áudio</h3>
+                           <div style="display: flex; align-items: center; gap: 0.75rem; color: #475569;">
+                               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                               <div style="flex-grow: 1; height: 8px; background-color: #e2e8f0; border-radius: 9999px;">
+                                   <div style="width: 20%; height: 100%; background-color: #3b82f6; border-radius: 9999px;"></div>
+                               </div>
+                               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                           </div>
+                           <p style="font-size: 0.875rem; color: #64748b; margin-top: 0.75rem;">O resumo em áudio está disponível na versão interativa online.</p>
                        </div>
                    </div>`
                 : '';
@@ -177,6 +190,7 @@ const App: React.FC = () => {
         } finally {
             setIsLoading(false);
             setLoadingMessage('');
+            setIsGeneratingAudio(false);
         }
     }, [files, context, constraints, priorities, voice, narrationStyle]);
 
@@ -189,7 +203,7 @@ const App: React.FC = () => {
             const imageBase64 = await generateDiagramImage(analysisResult.diagramPrompt);
             
             if (imageBase64) {
-                const imgTag = `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"><img id="aiGeneratedDiagram" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-md shadow-lg w-full h-auto object-contain" /><figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual gerado por IA.</figcaption></figure>`;
+                const imgTag = `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"><img id="aiGeneratedDiagram" src="data:image/jpeg;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" /><figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual gerado por IA. Clique para ampliar.</figcaption></figure>`;
                 
                 setAnalysisResult(prevResult => {
                     if (!prevResult) return null;
@@ -236,60 +250,64 @@ const App: React.FC = () => {
 
     return (
         <div className="flex flex-col min-h-screen">
-            <Header theme={theme} toggleTheme={toggleTheme} />
+            <Header theme={theme} toggleTheme={toggleTheme} isMounted={isMounted} />
             <main className="w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex-grow">
                 <div className="space-y-12">
-                    <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
-                        <div className="text-center mb-8">
-                            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Analisador de Arquitetura Inteligente</h2>
-                            <p className="mt-2 text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">Otimize sua arquitetura tecnológica com análises profundas e geração de documentação profissional.</p>
-                        </div>
-                        
-                        <div className="space-y-8">
-                            <FileUpload files={files} setFiles={setFiles} />
-                            <OptionsPanel 
-                                context={context}
-                                setContext={updateContext}
-                                constraints={constraints}
-                                setConstraints={updateConstraints}
-                                priorities={priorities}
-                                setPriorities={updatePriorities}
-                                validationErrors={validationErrors}
-                                voice={voice}
-                                setVoice={setVoice}
-                                narrationStyle={narrationStyle}
-                                setNarrationStyle={setNarrationStyle}
-                                validateContextOnBlur={validateContextOnBlur}
-                            />
+                    <div className={`transition-all duration-700 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                        <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
+                            <div className="text-center mb-8">
+                                <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Analisador de Arquitetura Inteligente</h2>
+                                <p className="mt-2 text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">Otimize sua arquitetura tecnológica com análises profundas e geração de documentação profissional.</p>
+                            </div>
+                            
+                            <div className="space-y-8">
+                                <FileUpload files={files} setFiles={setFiles} />
+                                <OptionsPanel 
+                                    context={context}
+                                    setContext={updateContext}
+                                    constraints={constraints}
+                                    setConstraints={updateConstraints}
+                                    priorities={priorities}
+                                    setPriorities={updatePriorities}
+                                    validationErrors={validationErrors}
+                                    voice={voice}
+                                    setVoice={setVoice}
+                                    narrationStyle={narrationStyle}
+                                    setNarrationStyle={setNarrationStyle}
+                                    validateContextOnBlur={validateContextOnBlur}
+                                />
 
-                            {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
+                                {error && <ErrorDisplay error={error} onDismiss={() => setError(null)} />}
 
-                            <div className="text-center pt-4">
-                                <Tooltip text={files.length === 0 ? "Adicione ao menos um arquivo para iniciar a análise." : "Iniciar a análise da arquitetura com base nos documentos e opções fornecidas."} className="w-full sm:w-auto">
-                                    <button
-                                        onClick={handleAnalyze}
-                                        disabled={isLoading || files.length === 0}
-                                        className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 disabled:from-slate-400 disabled:to-slate-500 dark:disabled:from-slate-600 dark:disabled:to-slate-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-blue-500/50 transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed disabled:shadow-none"
-                                    >
-                                        {isLoading ? 'Analisando...' : 'Analisar Arquitetura'}
-                                    </button>
-                                </Tooltip>
+                                <div className="text-center pt-4">
+                                    <Tooltip text={files.length === 0 ? "Adicione ao menos um arquivo para iniciar a análise." : "Iniciar a análise da arquitetura com base nos documentos e opções fornecidas."} className="w-full sm:w-auto">
+                                        <button
+                                            onClick={handleAnalyze}
+                                            disabled={isLoading || files.length === 0}
+                                            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 disabled:from-slate-400 disabled:to-slate-500 dark:disabled:from-slate-600 dark:disabled:to-slate-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-blue-500/50 transition-all transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 dark:focus:ring-blue-800 disabled:cursor-not-allowed disabled:shadow-none"
+                                        >
+                                            {isLoading ? 'Analisando...' : 'Analisar Arquitetura'}
+                                        </button>
+                                    </Tooltip>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     {history.length > 0 && (
-                        <HistoryPanel
-                            history={history}
-                            onLoadEntry={handleLoadHistoryEntry}
-                            onClearHistory={handleClearHistory}
-                        />
+                         <div className={`transition-all duration-700 ease-out delay-200 ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                            <HistoryPanel
+                                history={history}
+                                onLoadEntry={handleLoadHistoryEntry}
+                                onClearHistory={handleClearHistory}
+                            />
+                        </div>
                     )}
 
-                    {isLoading && <Loader message={loadingMessage} />}
+                    {isLoading && <Loader message={loadingMessage} isGeneratingAudio={isGeneratingAudio} />}
 
                     {analysisResult && (
-                        <div ref={resultsRef}>
+                        <div ref={resultsRef} className={`transition-all duration-700 ease-out delay-300 ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                             <ResultsDisplay 
                                 result={analysisResult}
                                 onGenerateDiagram={handleGenerateDiagram}
@@ -298,7 +316,7 @@ const App: React.FC = () => {
                     )}
                 </div>
             </main>
-            <footer className="text-center py-4 text-sm text-slate-500 dark:text-slate-400">
+            <footer className={`text-center py-4 text-sm text-slate-500 dark:text-slate-400 transition-opacity duration-700 delay-500 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
                 <p>
                     Desenvolvido com ❤️ por Amândio Vaz - 2025
                 </p>

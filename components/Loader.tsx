@@ -1,10 +1,12 @@
 import React from 'react';
+import { Icon } from './Icon';
 
 interface LoaderProps {
     message: string;
+    isGeneratingAudio?: boolean;
 }
 
-export const Loader: React.FC<LoaderProps> = ({ message }) => {
+export const Loader: React.FC<LoaderProps> = ({ message, isGeneratingAudio }) => {
     return (
         <div 
             className="fixed inset-0 bg-slate-900 bg-opacity-70 backdrop-blur-sm flex flex-col items-center justify-center z-50 transition-opacity duration-300"
@@ -27,7 +29,10 @@ export const Loader: React.FC<LoaderProps> = ({ message }) => {
                     IA
                 </div>
             </div>
-            <p className="text-slate-300 mt-6 text-center text-lg font-medium tracking-wide">{message}</p>
+            <p className="text-slate-300 mt-6 text-center text-lg font-medium tracking-wide flex items-center justify-center gap-3">
+                {isGeneratingAudio && <Icon name="audioWave" className="w-6 h-6 text-sky-400" />}
+                <span>{message}</span>
+            </p>
         </div>
     );
 };
