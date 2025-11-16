@@ -11,6 +11,20 @@ import { analyzeArchitecture, generateAudioSummary, generateDiagramImage } from 
 import { getHistory, addHistoryEntry, clearHistory } from './services/historyService';
 import type { AnalysisResult, HistoryEntry, DiagramConfig } from './types';
 
+// Lista de mensagens de carregamento para a análise principal da IA
+const ANALYSIS_MESSAGES = [
+    "Analisando dependências e inicializando o modelo...",
+    "Processando arquivos de documentação fornecidos...",
+    "Extraindo entidades e diagramas da arquitetura original...",
+    "Executando análise de pontos fortes e fracos (Deep Dive)...",
+    "Consultando base de conhecimento para arquiteturas alternativas...",
+    "Gerando propostas de otimização com base nas prioridades...",
+    "Compilando a matriz de decisão e o relatório técnico...",
+    "Finalizando a documentação em HTML e Markdown...",
+    "Quase lá, a IA está revisando o conteúdo final...",
+];
+
+
 const App: React.FC = () => {
     const [files, setFiles] = useState<File[]>([]);
     const [context, setContext] = useState<string>('');
@@ -132,9 +146,10 @@ const App: React.FC = () => {
 
         setIsLoading(true);
         setAnalysisResult(null);
+        let loadingInterval: NodeJS.Timeout | null = null;
 
         try {
-            setLoadingMessage('Processando arquivos e extraindo informações...');
+            setLoadingMessage('Preparando ambiente de análise...');
             const fileContents = await Promise.all(
                 files.map(async (file) => ({
                     name: file.name,
@@ -143,13 +158,22 @@ const App: React.FC = () => {
                 }))
             );
 
-            setLoadingMessage('Analisando arquitetura com IA (Modo Pensamento Profundo)...');
+            // Inicia o ciclo de mensagens dinâmicas para a análise principal
+            let messageIndex = 0;
+            setLoadingMessage(ANALYSIS_MESSAGES[messageIndex]);
+            loadingInterval = setInterval(() => {
+                messageIndex = (messageIndex + 1) % ANALYSIS_MESSAGES.length;
+                setLoadingMessage(ANALYSIS_MESSAGES[messageIndex]);
+            }, 2800);
+
             const analysisData = await analyzeArchitecture(fileContents, context, constraints, priorities);
+            
+            if (loadingInterval) clearInterval(loadingInterval); // Para o ciclo após a análise
             
             let audioBase64: string | null = null;
             
             if (analysisData.audioSummary) {
-                setLoadingMessage('Gerando resumo em áudio com TTS premium...');
+                setLoadingMessage('Gerando resumo em áudio com TTS premium...'); // Mensagem específica para áudio
                 setIsGeneratingAudio(true);
                 audioBase64 = await generateAudioSummary(analysisData.audioSummary, voice, narrationStyle);
                 setIsGeneratingAudio(false);
@@ -195,6 +219,7 @@ const App: React.FC = () => {
             console.error(err);
             setError(err instanceof Error ? err : new Error('Ocorreu um erro desconhecido.'));
         } finally {
+            if (loadingInterval) clearInterval(loadingInterval); // Garante a limpeza em caso de erro
             setIsLoading(false);
             setLoadingMessage('');
             setIsGeneratingAudio(false);
@@ -212,7 +237,7 @@ const App: React.FC = () => {
             if (imagesBase64 && imagesBase64.length > 0) {
                  const imgTags = imagesBase64.map((imageBase64, index) => 
                     `<figure class="my-8 bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden pdf-no-break">
-                        <img id="aiGeneratedDiagram-${index}" src="data:image/png;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA #${index + 1}" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" />
+                        <img id="aiGeneratedDiagram-${index}" src="data:image/png;base64,${imageBase64}" alt="Diagrama de Arquitetura Gerado por IA #${index + 1}" class="rounded-md shadow-lg w-full h-auto object-contain cursor-zoom-in" title="Clique para ampliar" />
                         <figcaption class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">Diagrama de arquitetura visual #${index + 1} gerado por IA. Clique para ampliar.</figcaption>
                     </figure>`
                 ).join('');
@@ -227,23 +252,13 @@ const App: React.FC = () => {
                 });
                 return imagesBase64;
             } else {
-                setError(new Error('A geração da imagem não retornou dados.'));
-                return null;
+                throw new Error('A geração da imagem não retornou dados.');
             }
     
         } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err : new Error('Falha ao gerar o diagrama.'));
-            setAnalysisResult(prevResult => {
-                if (!prevResult) return null;
-                const errorHtml = '<div class="my-6 p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-600 rounded-lg text-center text-red-700 dark:text-red-300">Falha ao gerar o diagrama. Por favor, tente novamente mais tarde.</div>';
-                return {
-                    ...prevResult,
-                    html: prevResult.html.replace('[[DIAGRAM_PLACEHOLDER]]', errorHtml),
-                    diagramPrompt: null,
-                };
-            });
-            return null;
+            console.error("Propagating diagram generation error to UI:", err);
+            // Re-lança o erro para que o componente ResultsDisplay possa capturá-lo e exibir uma mensagem específica.
+            throw err;
         }
     }, [analysisResult]);
 

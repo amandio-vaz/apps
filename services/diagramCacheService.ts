@@ -20,21 +20,22 @@ class DiagramCacheService {
         return hash;
     }
 
-    private getCacheKey(prompt: string, aspectRatio: string, numberOfImages: number): string {
+    private getCacheKey(prompt: string, aspectRatio: string, numberOfImages: number, style: string, negativePrompt?: string): string {
         const promptHash = this.createHash(prompt);
-        // Combine hash, aspectRatio, and numberOfImages for a robust, unique key
-        return `${this.prefix}${aspectRatio}|${numberOfImages}|${prompt.length}|${promptHash}`;
+        const negativePromptHash = this.createHash(negativePrompt || '');
+        // Combina todos os parâmetros para uma chave única e robusta
+        return `${this.prefix}${style}|${aspectRatio}|${numberOfImages}|${prompt.length}|${promptHash}|${(negativePrompt || '').length}|${negativePromptHash}`;
     }
 
-    get(prompt: string, aspectRatio: string, numberOfImages: number): string[] | null {
-        const key = this.getCacheKey(prompt, aspectRatio, numberOfImages);
+    get(prompt: string, aspectRatio: string, numberOfImages: number, style: string, negativePrompt?: string): string[] | null {
+        const key = this.getCacheKey(prompt, aspectRatio, numberOfImages, style, negativePrompt);
         try {
             const item = localStorage.getItem(key);
             if (!item) return null;
 
             const entry: CacheEntry = JSON.parse(item);
             
-            // Update timestamp on access for LRU (Least Recently Used) strategy
+            // Atualiza o timestamp no acesso para a estratégia LRU (Least Recently Used)
             entry.timestamp = Date.now();
             localStorage.setItem(key, JSON.stringify(entry));
             
@@ -45,8 +46,8 @@ class DiagramCacheService {
         }
     }
 
-    set(prompt: string, aspectRatio: string, numberOfImages: number, value: string[]): void {
-        const key = this.getCacheKey(prompt, aspectRatio, numberOfImages);
+    set(prompt: string, aspectRatio: string, numberOfImages: number, style: string, value: string[], negativePrompt?: string): void {
+        const key = this.getCacheKey(prompt, aspectRatio, numberOfImages, style, negativePrompt);
         const entry: CacheEntry = {
             value,
             timestamp: Date.now(),
@@ -58,7 +59,7 @@ class DiagramCacheService {
             if (this.isQuotaExceeded(error)) {
                 this.cleanup();
                 try {
-                    // Retry after cleanup
+                    // Tenta novamente após a limpeza
                     localStorage.setItem(key, JSON.stringify(entry));
                 } catch (retryError) {
                     console.error("Failed to write to diagram cache even after cleanup:", retryError);

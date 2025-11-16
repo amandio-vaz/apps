@@ -263,35 +263,73 @@ export const generateAudioSummary = async (
 };
 
 export const generateDiagramImage = async (prompt: string, config: DiagramConfig): Promise<string[]> => {
-    const cachedImages = diagramCache.get(prompt, config.aspectRatio, config.numberOfImages);
+    const cachedImages = diagramCache.get(prompt, config.aspectRatio, config.numberOfImages, config.style, config.negativePrompt);
     if (cachedImages) {
         console.log("Retornando imagens de diagrama do cache persistente.");
         return cachedImages;
     }
 
-    console.log(`Gerando ${config.numberOfImages} novas imagens de diagrama com 'imagen-4.0-generate-001' na proporção ${config.aspectRatio}.`);
+    console.log(`Gerando ${config.numberOfImages} novas imagens de diagrama com 'imagen-4.0-generate-001', proporção ${config.aspectRatio}, estilo ${config.style}.`);
     
+    const stylePromptEnhancements: { [key: string]: string } = {
+        'Arquitetura de Blocos': ', visualized as a detailed technical block architecture diagram. Use industry-standard notation, clearly defined components with precise layout, minimalist icons, and logical connections with clear annotations. Highly detailed, professional-grade technical illustration.',
+        'Fluxo de Dados': ', visualized as a detailed technical data flow diagram (DFD) using industry-standard notation. Show connections, pathways, and data sources with precise layout, clear annotations, and directional arrows. Professional-grade technical illustration with high clarity.',
+        'Componentes Detalhados': ', as a detailed technical diagram focusing on system components. Similar to a system decomposition diagram, it should have a precise layout with clear annotations for each part. Highly detailed and precise technical drawing style.',
+        'Diagrama de Sequência': ', as a UML sequence diagram illustrating interactions between lifelines over time. Use industry-standard UML notation with precise layout and clear annotations on messages. Professional, clear, and highly detailed technical illustration.',
+        'Visão Isométrica 3D': ', in a 3D isometric style, with a sense of depth and perspective. This should be a detailed technical illustration with a precise layout and clear annotations where applicable, presented in a sleek and modern style. High-quality, professional-grade render.',
+        'Estilo Blueprint Técnico': ', in the style of a detailed technical CAD blueprint drawing. Featuring clean, precise vector lines, grid lines, industry-standard notation, and clear technical annotations. A monochromatic blue color scheme on a dark background is preferred. Highly detailed and professional.',
+    };
+
+    // Adiciona o aprimoramento de estilo ao prompt, se houver um correspondente
+    const enhancement = stylePromptEnhancements[config.style] || '';
+    const enhancedPrompt = `${prompt}${enhancement}`;
+
+    // Constrói o objeto de configuração para a API do Imagen
+    const apiConfig: {
+        numberOfImages: number;
+        outputMimeType: 'image/png';
+        aspectRatio: DiagramConfig['aspectRatio'];
+        negativePrompt?: string;
+    } = {
+        numberOfImages: config.numberOfImages,
+        outputMimeType: 'image/png',
+        aspectRatio: config.aspectRatio,
+    };
+    
+    // Adiciona o prompt negativo à configuração, se ele for fornecido e não estiver vazio
+    if (config.negativePrompt && config.negativePrompt.trim()) {
+        apiConfig.negativePrompt = config.negativePrompt.trim();
+        console.log(`Usando prompt negativo: "${apiConfig.negativePrompt}"`);
+    }
+
     try {
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
-            prompt: prompt,
-            config: {
-                numberOfImages: config.numberOfImages,
-                outputMimeType: 'image/png',
-                aspectRatio: config.aspectRatio,
-            },
+            prompt: enhancedPrompt, // Usa o prompt aprimorado
+            config: apiConfig, // Usa o objeto de configuração construído
         });
 
         if (response.generatedImages && response.generatedImages.length > 0) {
             const imagesBase64 = response.generatedImages.map(img => img.image.imageBytes);
             console.log(`Sucesso! ${imagesBase64.length} de ${config.numberOfImages} imagens geradas.`);
-            diagramCache.set(prompt, config.aspectRatio, config.numberOfImages, imagesBase64);
+            diagramCache.set(prompt, config.aspectRatio, config.numberOfImages, config.style, imagesBase64, config.negativePrompt);
             return imagesBase64;
         } else {
              throw new Error("A API não retornou imagens geradas.");
         }
     } catch (err) {
         console.error("Erro ao gerar imagens de diagrama com Imagen:", err);
-        throw new Error("Não foi possível gerar a imagem do diagrama. A API retornou um erro.");
+        let userFriendlyMessage = "Não foi possível gerar a imagem do diagrama. A API retornou um erro inesperado.";
+        if (err instanceof Error) {
+            if (err.message.toLowerCase().includes('safety policy')) {
+                userFriendlyMessage = "O prompt foi bloqueado pela política de segurança. Tente reformular o prompt, especialmente o prompt negativo.";
+            } else if (err.message.toLowerCase().includes('invalid argument')) {
+                userFriendlyMessage = "Houve um problema com os parâmetros enviados. Verifique as configurações e tente novamente.";
+            } else if (err.message.toLowerCase().includes('quota')) {
+                 userFriendlyMessage = "O limite de solicitações para a API foi atingido. Por favor, tente novamente mais tarde.";
+            }
+        }
+        // Lança um novo erro com uma mensagem mais específica para a UI.
+        throw new Error(userFriendlyMessage);
     }
 };

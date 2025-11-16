@@ -76,6 +76,45 @@ const DownloadButtonContent: React.FC<{
     }
 };
 
+const diagramLoadingMessages = [
+    "Analisando o prompt do diagrama...",
+    "Inicializando o modelo de imagem Imagen 4.0...",
+    "Configurando o pipeline de renderização...",
+    "Gerando conceitos visuais iniciais...",
+    "Renderizando variações de alta resolução...",
+    "Aplicando toques finais e otimizando...",
+    "Quase pronto! A IA está finalizando a obra de arte.",
+];
+
+const DiagramLoadingState: React.FC<{ message: string }> = ({ message }) => (
+    <div className="flex flex-col items-center justify-center p-6 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg border border-slate-200/20 dark:border-slate-700/50 transition-all duration-300">
+        <div className="relative w-20 h-20">
+            <svg className="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Animação do 'Blueprint' */}
+                <rect x="10" y="10" width="80" height="80" rx="4" stroke="currentColor" className="text-sky-500/30" strokeWidth="2"/>
+                <path d="M30 70 L30 50 L50 30 L70 50 L70 70" stroke="currentColor" className="text-sky-400" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" 
+                    strokeDasharray="150" strokeDashoffset="150" style={{ animation: 'draw 2s ease-in-out forwards' }}/>
+                <rect x="45" y="60" width="10" height="10" stroke="currentColor" className="text-sky-400" strokeWidth="2"
+                    strokeDasharray="40" strokeDashoffset="40" style={{ animation: 'draw 1.5s ease-in-out 1s forwards' }} />
+            </svg>
+            <style>{`
+                @keyframes draw { to { stroke-dashoffset: 0; } }
+            `}</style>
+        </div>
+        <p className="mt-4 text-center text-slate-600 dark:text-slate-300 font-medium">{message}</p>
+        <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full mt-4 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-sky-500 to-emerald-500 rounded-full" style={{ width: '100%', animation: 'progress 3s ease-in-out infinite' }}></div>
+            <style>{`
+                @keyframes progress { 
+                    0% { transform: translateX(-100%); } 
+                    50% { transform: translateX(0%); }
+                    100% { transform: translateX(100%); }
+                }
+            `}</style>
+        </div>
+    </div>
+);
+
 export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenerateDiagram }) => {
     const [activeTab, setActiveTab] = useState<Tab>('html');
     const [downloadStatus, setDownloadStatus] = useState<{
@@ -83,11 +122,15 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         markdown: DownloadStatus;
         audio: DownloadStatus;
         diagram: DownloadStatus;
+        txt: DownloadStatus;
+        json: DownloadStatus;
     }>({
         pdf: 'idle',
         markdown: 'idle',
         audio: 'idle',
         diagram: 'idle',
+        txt: 'idle',
+        json: 'idle',
     });
 
     const [isDiagramVisible, setIsDiagramVisible] = useState(false);
@@ -100,6 +143,11 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const [isMounted, setIsMounted] = useState(false);
     const scrollPositions = useRef<{ html: number, markdown: number }>({ html: 0, markdown: 0 }); // Ref para posições de rolagem
     const [diagramAspectRatio, setDiagramAspectRatio] = useState<DiagramConfig['aspectRatio']>('16:9');
+    const [diagramNumberOfImages, setDiagramNumberOfImages] = useState<number>(2);
+    const [diagramStyle, setDiagramStyle] = useState<string>('Arquitetura de Blocos');
+    const [diagramNegativePrompt, setDiagramNegativePrompt] = useState<string>('');
+    const [diagramNegativePromptError, setDiagramNegativePromptError] = useState<string | null>(null);
+    const [diagramError, setDiagramError] = useState<string | null>(null);
 
 
     // State for Diagram Modal
@@ -111,9 +159,29 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     const startPanPoint = useRef({ x: 0, y: 0 });
     const imageRef = useRef<HTMLImageElement>(null);
 
+    // State for diagram loading messages
+    const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+    const loadingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-    // --- LOGIC FOR SCROLL POSITION PERSISTENCE ---
+    useEffect(() => {
+        if (downloadStatus.diagram === 'loading') {
+            setLoadingMessageIndex(0); // Reset on start
+            loadingIntervalRef.current = setInterval(() => {
+                setLoadingMessageIndex(prevIndex => (prevIndex + 1) % diagramLoadingMessages.length);
+            }, 2500);
+        } else {
+            if (loadingIntervalRef.current) {
+                clearInterval(loadingIntervalRef.current);
+                loadingIntervalRef.current = null;
+            }
+        }
+        return () => {
+            if (loadingIntervalRef.current) clearInterval(loadingIntervalRef.current);
+        };
+    }, [downloadStatus.diagram]);
 
+
+    // --- LÓGICA PARA PERSISTÊNCIA DA POSIÇÃO DE ROLAGEM ---
     const handleTabChange = (newTab: Tab) => {
         if (newTab === activeTab) return;
 
@@ -150,7 +218,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
         setIsDiagramVisible(!!diagramElement);
     }, [result.html]);
 
-    // Effect for pagination logic
+    // Efeito para recalcular as páginas quando o conteúdo ou a aba mudam.
     useEffect(() => {
         if (activeTab === 'html' && result.html) {
             const rawPages = result.html.split(/(?=<h[1-2][^>]*>)/).filter(page => page.trim() !== '');
@@ -172,9 +240,15 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
             if (pageBuffer.trim()) mergedPages.push(pageBuffer);
     
             setPages(mergedPages.length > 0 ? mergedPages : (result.html ? [result.html] : []));
-            setCurrentPage(0);
         }
     }, [result.html, activeTab]);
+
+    // Efeito para redefinir a página e a rolagem APENAS quando um novo resultado é carregado.
+    useEffect(() => {
+        setCurrentPage(0);
+        scrollPositions.current = { html: 0, markdown: 0 };
+    }, [result.html]);
+
 
     // Efeito para aplicar realce de sintaxe e numeração de linhas
     useEffect(() => {
@@ -201,13 +275,43 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
 
 
     const handleGenerateDiagramClick = async () => {
-        if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading') return;
+        if (!showGenerateDiagramButton || downloadStatus.diagram === 'loading' || !!diagramNegativePromptError) return;
+        
+        setDiagramError(null);
         setStatusWithTimeout('diagram', 'loading', 0);
-        const imagesBase64 = await onGenerateDiagram({ aspectRatio: diagramAspectRatio, numberOfImages: 2 });
-        if (imagesBase64 && imagesBase64.length > 0) {
-            setStatusWithTimeout('diagram', 'success', 2000);
+
+        try {
+            const imagesBase64 = await onGenerateDiagram({
+                aspectRatio: diagramAspectRatio,
+                numberOfImages: diagramNumberOfImages,
+                style: diagramStyle,
+                negativePrompt: diagramNegativePrompt,
+            });
+    
+            if (imagesBase64 && imagesBase64.length > 0) {
+                setStatusWithTimeout('diagram', 'success', 2000);
+            } else {
+                // Este caso pode ocorrer se a API retornar nulo sem um erro explícito.
+                setDiagramError("A geração do diagrama não retornou imagens, mas não especificou um erro.");
+                setStatusWithTimeout('diagram', 'idle', 0);
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Ocorreu um erro desconhecido ao gerar o diagrama.';
+            setDiagramError(message);
+            setStatusWithTimeout('diagram', 'idle', 0); // Reseta o estado de carregamento no erro
+        }
+    };
+
+    const handleNegativePromptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setDiagramNegativePrompt(value);
+
+        if (value.trim() === '' && value.length > 0) {
+            setDiagramNegativePromptError('O prompt negativo não pode conter apenas espaços em branco.');
+        } else if (value.length > 200) {
+            setDiagramNegativePromptError('O prompt negativo não pode exceder 200 caracteres.');
         } else {
-            setStatusWithTimeout('diagram', 'idle', 0);
+            setDiagramNegativePromptError(null);
         }
     };
 
@@ -318,6 +422,49 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
 
         setStatusWithTimeout('diagram', 'success');
     };
+    
+    const handleDownloadTxt = () => {
+        setStatusWithTimeout('txt', 'loading');
+        const blob = new Blob([result.markdown], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'analise-arquitetura-ia.txt');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setStatusWithTimeout('txt', 'success');
+    };
+
+    const handleDownloadJson = () => {
+        setStatusWithTimeout('json', 'loading');
+        const exportData = {
+            metadata: {
+                exportDate: new Date().toISOString(),
+                title: "StackArch Cortex Platform - Analysis Report",
+            },
+            content: {
+                html: result.html,
+                markdown: result.markdown,
+            },
+            assets: {
+                hasAudio: !!result.audioBase64,
+                diagramPrompt: result.diagramPrompt || "Nenhum prompt de diagrama disponível ou diagrama já gerado.",
+            }
+        };
+        const jsonString = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', 'analise-arquitetura-ia.json');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setStatusWithTimeout('json', 'success');
+    };
 
     const handleCopyMarkdown = () => {
         navigator.clipboard.writeText(result.markdown).then(() => {
@@ -370,6 +517,9 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     
     const baseButtonClass = "inline-flex items-center justify-center gap-2 w-full sm:w-auto text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all transform hover:scale-105 disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-60";
     const commonSelectClasses = "w-full px-4 py-2 bg-slate-50/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition appearance-none text-slate-800 dark:text-slate-200";
+    const commonInputClasses = "w-full px-4 py-2 bg-slate-50/10 dark:bg-slate-900/70 border border-slate-300/50 dark:border-slate-600/50 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition placeholder:text-slate-500 dark:placeholder:text-slate-400 text-slate-800 dark:text-slate-200";
+    const commonLabelClasses = "block text-sm text-left font-medium text-slate-700 dark:text-slate-300 mb-1.5";
+
 
     const TabButton: React.FC<{ tab: Tab; label: string; icon: string; tooltip: string }> = ({ tab, label, icon, tooltip }) => (
         <Tooltip text={tooltip}>
@@ -423,12 +573,20 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
     };
 
     const aspectRatios: DiagramConfig['aspectRatio'][] = ['16:9', '1:1', '9:16', '4:3', '3:4'];
+    const diagramStyles = [
+        'Arquitetura de Blocos', 
+        'Fluxo de Dados', 
+        'Componentes Detalhados',
+        'Diagrama de Sequência',
+        'Visão Isométrica 3D',
+        'Estilo Blueprint Técnico'
+    ];
 
     return (
         <div className="bg-white/10 dark:bg-slate-800/50 backdrop-blur-lg p-6 sm:p-8 rounded-2xl shadow-2xl border border-slate-200/20 dark:border-slate-700/50">
             <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 transition-all duration-500 ease-out ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                 <h2 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Resultados da Análise</h2>
-                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 flex-wrap">
+                <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 flex-wrap">
                     {isDiagramVisible && (
                         <Tooltip text="Baixar o diagrama de arquitetura gerado pela IA como uma imagem PNG.">
                             <button
@@ -453,6 +611,26 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                             </button>
                         </Tooltip>
                     )}
+                    <Tooltip text="Baixar o relatório como um arquivo de texto simples (.txt).">
+                        <button
+                            onClick={handleDownloadTxt}
+                            disabled={downloadStatus.txt !== 'idle'}
+                            className={`${baseButtonClass} bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700`}
+                            aria-label="Baixar análise em formato de texto"
+                        >
+                            <DownloadButtonContent status={downloadStatus.txt} idleIcon="text" idleText=".TXT" loadingText="Baixando..." />
+                        </button>
+                    </Tooltip>
+                    <Tooltip text="Exportar todos os dados da análise em um formato JSON estruturado.">
+                        <button
+                            onClick={handleDownloadJson}
+                            disabled={downloadStatus.json !== 'idle'}
+                            className={`${baseButtonClass} bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600`}
+                            aria-label="Exportar análise para formato JSON"
+                        >
+                            <DownloadButtonContent status={downloadStatus.json} idleIcon="json" idleText="JSON" loadingText="Exportando..." />
+                        </button>
+                    </Tooltip>
                     <Tooltip text="Baixar o relatório completo da análise no formato Markdown.">
                         <button
                             onClick={handleDownloadMarkdown}
@@ -460,7 +638,7 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                             className={`${baseButtonClass} bg-gradient-to-r from-slate-500 to-gray-500 hover:from-slate-600 hover:to-gray-600`}
                             aria-label="Baixar análise em formato Markdown"
                         >
-                             <DownloadButtonContent status={downloadStatus.markdown} idleIcon="download" idleText=".MD" loadingText="Baixando..." />
+                             <DownloadButtonContent status={downloadStatus.markdown} idleIcon="markdown" idleText=".MD" loadingText="Baixando..." />
                         </button>
                     </Tooltip>
                     <Tooltip text="Gerar e baixar um relatório completo e profissional no formato PDF.">
@@ -520,49 +698,137 @@ export const ResultsDisplay: React.FC<ResultsDisplayProps> = ({ result, onGenera
                     onClick={handleContentClick}
                 >
                      {showDiagramGenerationUI && (
-                        <div className="my-6 p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center no-print border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
-                            <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">Visualização da Arquitetura</h3>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Um diagrama visual pode ser gerado por IA para esta seção.</p>
-                            
-                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                                <Tooltip text="Selecione a proporção (aspect ratio) para o diagrama.">
-                                    <div className="relative w-full sm:w-auto">
-                                        <select
-                                            id="aspect-ratio"
-                                            value={diagramAspectRatio}
-                                            onChange={(e) => setDiagramAspectRatio(e.target.value as DiagramConfig['aspectRatio'])}
-                                            className={`${commonSelectClasses} h-[42px] pl-3 pr-8`}
-                                            aria-label="Proporção do diagrama"
-                                        >
-                                            {aspectRatios.map(ratio => (
-                                                <option key={ratio} value={ratio}>{ratio}</option>
-                                            ))}
-                                        </select>
-                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
-                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                        <div className="my-6 no-print">
+                            {downloadStatus.diagram === 'loading' ? (
+                                <DiagramLoadingState message={diagramLoadingMessages[loadingMessageIndex]} />
+                            ) : (
+                                <div className="p-4 bg-slate-500/10 dark:bg-slate-900/50 rounded-lg shadow text-center border border-slate-200/20 dark:border-slate-700/50 transition-opacity duration-300">
+                                    <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">Visualização da Arquitetura</h3>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Um diagrama visual pode ser gerado por IA para esta seção. Refine as opções abaixo.</p>
+                                    
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                            <div>
+                                                <label htmlFor="aspect-ratio" className={commonLabelClasses}>
+                                                    Proporção
+                                                </label>
+                                                <Tooltip text="Selecione a proporção (aspect ratio) para o diagrama.">
+                                                    <div className="relative w-full">
+                                                        <select
+                                                            id="aspect-ratio"
+                                                            value={diagramAspectRatio}
+                                                            onChange={(e) => setDiagramAspectRatio(e.target.value as DiagramConfig['aspectRatio'])}
+                                                            className={`${commonSelectClasses} h-[42px] pl-3 pr-8`}
+                                                        >
+                                                            {aspectRatios.map(ratio => (
+                                                                <option key={ratio} value={ratio}>{ratio}</option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
+                                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="http://www.w3.org/2000/svg"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                        </div>
+                                                    </div>
+                                                </Tooltip>
+                                            </div>
+                                            <div>
+                                                <label htmlFor="number-of-images" className={commonLabelClasses}>
+                                                    Nº de Imagens
+                                                </label>
+                                                <Tooltip text="Selecione o número de imagens a serem geradas.">
+                                                    <div className="relative w-full">
+                                                        <select
+                                                            id="number-of-images"
+                                                            value={diagramNumberOfImages}
+                                                            onChange={(e) => setDiagramNumberOfImages(Number(e.target.value))}
+                                                            className={`${commonSelectClasses} h-[42px] pl-3 pr-8`}
+                                                        >
+                                                            {[1, 2, 3, 4].map(num => (
+                                                                <option key={num} value={num}>{num} imagem{num > 1 ? 's' : ''}</option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
+                                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="http://www.w3.org/2000/svg"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                        </div>
+                                                    </div>
+                                                </Tooltip>
+                                            </div>
+                                            <div>
+                                                <label htmlFor="diagram-style" className={commonLabelClasses}>
+                                                    Estilo Visual
+                                                </label>
+                                                <Tooltip text="Selecione o estilo visual para o diagrama.">
+                                                    <div className="relative w-full">
+                                                        <select
+                                                            id="diagram-style"
+                                                            value={diagramStyle}
+                                                            onChange={(e) => setDiagramStyle(e.target.value)}
+                                                            className={`${commonSelectClasses} h-[42px] pl-3 pr-8`}
+                                                        >
+                                                            {diagramStyles.map(style => (
+                                                                <option key={style} value={style}>{style}</option>
+                                                            ))}
+                                                        </select>
+                                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700 dark:text-slate-300">
+                                                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="http://www.w3.org/2000/svg"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                                                        </div>
+                                                    </div>
+                                                </Tooltip>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label htmlFor="negative-prompt" className={commonLabelClasses}>
+                                                Prompt Negativo (Opcional)
+                                            </label>
+                                            <Tooltip text="Descreva elementos ou estilos a serem evitados na imagem. Ex: texto, escrita, pessoas, cores feias, desfocado.">
+                                                <input
+                                                    id="negative-prompt"
+                                                    type="text"
+                                                    value={diagramNegativePrompt}
+                                                    onChange={handleNegativePromptChange}
+                                                    placeholder="Ex: texto, desfocado, cartoon"
+                                                    className={`${commonInputClasses} h-[42px] ${diagramNegativePromptError ? 'border-red-500/50 ring-1 ring-red-500' : ''}`}
+                                                    aria-label="Prompt negativo para geração de diagrama"
+                                                    aria-invalid={!!diagramNegativePromptError}
+                                                    aria-describedby={diagramNegativePromptError ? "negative-prompt-error" : undefined}
+                                                />
+                                            </Tooltip>
+                                            {diagramNegativePromptError && (
+                                                <p id="negative-prompt-error" className="mt-1 text-sm text-left text-red-500 dark:text-red-400" role="alert">
+                                                    {diagramNegativePromptError}
+                                                </p>
+                                            )}
+                                        </div>
+                                        
+                                        {diagramError && (
+                                            <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-md text-sm text-red-700 dark:text-red-300 text-center" role="alert">
+                                                <p><strong>Falha na Geração:</strong> {diagramError}</p>
+                                            </div>
+                                        )}
+
+                                        <div className="pt-2">
+                                            <Tooltip text={`Solicitar à IA que gere ${diagramNumberOfImages} ${diagramNumberOfImages > 1 ? 'diagramas visuais' : 'diagrama visual'} no estilo "${diagramStyle}" (${diagramAspectRatio}).`}>
+                                                <button
+                                                    onClick={handleGenerateDiagramClick}
+                                                    disabled={!showGenerateDiagramButton || !!diagramNegativePromptError}
+                                                    className={`inline-flex items-center justify-center gap-2 w-full sm:w-auto text-white font-bold py-2 px-6 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed
+                                                        ${downloadStatus.diagram === 'success' ? 'bg-green-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}
+                                                        
+                                                        ${downloadStatus.diagram === 'idle' && !showGenerateDiagramButton ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}
+                                                    `}
+                                                >
+                                                <DownloadButtonContent 
+                                                        status={downloadStatus.diagram}
+                                                        idleIcon="diagram"
+                                                        idleText="Gerar Diagrama com IA"
+                                                        loadingText="Gerando Diagrama..."
+                                                        successText="Diagrama Gerado!"
+                                                />
+                                                </button>
+                                            </Tooltip>
                                         </div>
                                     </div>
-                                </Tooltip>
-                                <Tooltip text={`Solicitar à IA que gere 2 diagramas visuais da arquitetura (${diagramAspectRatio}).`}>
-                                    <button
-                                        onClick={handleGenerateDiagramClick}
-                                        disabled={downloadStatus.diagram === 'loading' || !showGenerateDiagramButton}
-                                        className={`inline-flex items-center justify-center gap-2 w-full sm:w-56 text-white font-bold py-2 px-4 rounded-lg transition-all transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:cursor-not-allowed
-                                            ${downloadStatus.diagram === 'success' ? 'bg-green-600' : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600'}
-                                            ${downloadStatus.diagram === 'loading' ? 'bg-slate-500 cursor-wait' : ''}
-                                            ${downloadStatus.diagram === 'idle' && !showGenerateDiagramButton ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}
-                                        `}
-                                    >
-                                    <DownloadButtonContent 
-                                            status={downloadStatus.diagram}
-                                            idleIcon="diagram"
-                                            idleText="Gerar Diagrama com IA"
-                                            loadingText="Gerando Diagrama..."
-                                            successText="Diagrama Gerado!"
-                                    />
-                                    </button>
-                                </Tooltip>
-                            </div>
+                                </div>
+                            )}
                         </div>
                     )}
                     <PaginationControls />

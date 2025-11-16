@@ -103,6 +103,19 @@ export const Icon: React.FC<IconProps> = ({ name, className, ...props }) => {
               </rect>
             </svg>
         ),
+        text: (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <line x1="4" y1="6" x2="20" y2="6"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="18" x2="16" y2="18"></line>
+            </svg>
+        ),
+        json: (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M9.5 3c-2.5 0-5 2.5-5 5v8c0 2.5 2.5 5 5 5"></path>
+                <path d="M14.5 21c2.5 0 5-2.5 5-5V6c0-2.5-2.5-5-5-5"></path>
+            </svg>
+        ),
     };
 
     return <div className={className}>{icons[name]}</div>;

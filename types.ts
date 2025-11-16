@@ -29,4 +29,6 @@ export interface HistoryEntry {
 export interface DiagramConfig {
     aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
     numberOfImages: number;
+    style: string;
+    negativePrompt?: string;
 }
